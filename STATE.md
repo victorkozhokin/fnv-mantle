@@ -5,11 +5,15 @@ and RESEARCH.md and you are caught up.
 
 ## Shipped
 
-`Mantle-v22.zip` on the share, alongside `PlayerPhysics-v27-trace.zip`. Both are
-needed: the blocked detection lives in Player Physics, exposed as `PPBlockedTime`.
+`Mantle-v38.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
+needed** -- the trigger reads `PPSpeedRatio`, `PPAirTime` and `PPInAir`, and an
+older Player Physics fails to compile the script at all, which kills the whole
+mod rather than one feature.
 
-Mantle has **no DLL**. It is `ln_Mantle.txt`, `MainLoop.gek`, and a borrowed
-animation. The plugin it started as was deleted once the detection moved.
+Mantle has **no DLL**. It is `ln_Mantle.txt`, `MainLoop.gek`, and one animation,
+made for the mod. The plugin it started as was deleted once the detection moved
+into Player Physics, which is the only code that can see both the speed the
+engine asked for and the distance actually covered.
 
 ## What works
 
@@ -88,7 +92,6 @@ animation. The plugin it started as was deleted once the detection moved.
   is ~60 degrees down, a stare at one's own boots, hence
   `*_Mantle_CamPitchMax` = 22; and the view must be put back, or the player is
   left aiming at the floor with no idea why.
-  `attic/camera-lock.gek.txt` is the v31 copy and is now redundant with git.
 
 ## Settled: the keyless trigger
 
@@ -119,16 +122,17 @@ height of clearance above it. Walls, posts and NPCs fail that on their own.
 
 ## Open
 
-- **Height cutoff.** `0.70` of player height. Not the fence problem: `raw` came
-  back equal to `height` every time, so the cap has never rejected anything.
-  Two real causes were found instead, both in v23:
-  the scan's loop guard compared an absolute world Z against a relative height,
-  which killed it after one pass at ankle level; and it took the first hit going
-  up, which is the shack wall seen through the gap under the fence.
-- **Depth is not measured.** The fan already contains the answer -- which
-  samples hit the top and which fell to the floor -- it is simply discarded.
-  Would give: vault-through vs mantle-onto, animation choice, and a check that
-  there is anywhere to land. Agreed to do after the height cutoff.
+- **Depth is measured but nothing uses it.** It would give vault-through versus
+  mantle-onto, and a check that there is anywhere to land.
+- **Momentum through the climb.** `SetActorVelocity Z 0` on release forgets the
+  fall the climb invented, but horizontal velocity is still whatever survives
+  the `SetPos`. Carrying it properly means writing X/Y velocity every frame --
+  and first establishing the getter/setter scale factor, see Hard-won facts.
+- **Grabbing was tried and reverted** (v35, commit `fc0a3f4`). A second height
+  band up to 1.15 of player height, entered only where the leg band found
+  nothing, with the forward move delayed to `t^3` to read as hauling rather than
+  stepping. It worked and did not help. If it comes back it should probably wait
+  for a real hanging animation, since the thing it was missing was the hang.
 - Debug `PrintC` output is still on.
 
 ## Hard-won facts
