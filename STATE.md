@@ -10,8 +10,8 @@ needed** -- the trigger reads `PPSpeedRatio`, `PPAirTime` and `PPInAir`, and an
 older Player Physics fails to compile the script at all, which kills the whole
 mod rather than one feature.
 
-Mantle has **no DLL**. It is `ln_Mantle.txt`, `MainLoop.gek`, and one animation,
-made for the mod. The plugin it started as was deleted once the detection moved
+Mantle has **no DLL**. It is `ln_Mantle.txt`, `MainLoop.gek`, and three
+animations. The plugin it started as was deleted once the detection moved
 into Player Physics, which is the only code that can see both the speed the
 engine asked for and the distance actually covered.
 
