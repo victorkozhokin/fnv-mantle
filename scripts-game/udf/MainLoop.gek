@@ -48,17 +48,6 @@ float fGoX
 float fGoY
 float fNewX
 float fNewY
-float fGrabMax
-float fGrabHeight
-float fGrabX
-float fGrabY
-float fGrabZ
-float fGrabDist
-float fGrabRun
-float fMode
-float fRoom
-float fAdd
-float fOverZ
 ref rIdle
 
 begin function {}
@@ -92,18 +81,7 @@ begin function {}
 		set fNewZ to fStartZ + fNewZ
 		player.SetPos Z fNewZ
 
-		; A grab holds the forward move back further still. There is no hanging
-		; state here -- holding the player still in the air would want a hanging
-		; animation, and with idle arms it would read as floating rather than
-		; hanging. What can be done without one is the shape of the movement:
-		; go up the face, stay against it, and come over only at the end. Cubed
-		; instead of squared spends most of the climb doing exactly that.
-		set fMode to player.AuxVarGetFlt "*_Mantle_Mode" 0
 		set fEase to fT * fT
-		if fMode
-			set fEase to fEase * fT
-		endif
-
 		set fStartX to player.AuxVarGetFlt "*_Mantle_Start" 0
 		set fStartY to player.AuxVarGetFlt "*_Mantle_Start" 1
 		set fGoX to player.AuxVarGetFlt "*_Mantle_Go" 0
@@ -218,27 +196,8 @@ begin function {}
 	;
 	; So the lower bound is enforced by the geometry of the cast rather than by a
 	; test afterwards, and the test afterwards is gone.
-	; A second band above the climbing limit, for ledges that are over the head
-	; but still inside the reach of raised arms.
-	;
-	; It costs no extra rays. The window simply starts higher, and the samples
-	; are sorted into the two bands afterwards -- one sweep answers both
-	; questions, because "how high is the surface" was always the only question
-	; being asked.
-	;
-	; The lower band wins whenever it has anything at all. That is not a
-	; preference so much as a promise: everything that vaulted yesterday vaults
-	; today, and the grab only ever appears where there was nothing before.
-	; Setting the fraction to 0 disables the band and restores the old window
-	; exactly.
-	set fGrabMax to player.AuxVarGetFlt "*_Mantle_GrabMax" 0
-	set fGrabMax to fPlayerHeight * fGrabMax
-	if fGrabMax < fMaxHeight
-		set fGrabMax to fMaxHeight
-	endif
-
-	set fCastTopZ to fStartZ + fGrabMax
-	set fWindow to fGrabMax - fMinHeight
+	set fCastTopZ to fStartZ + fMaxHeight
+	set fWindow to fMaxHeight - fMinHeight
 
 	; Sweeping outward and probing down, rather than finding the face and stepping
 	; past it.
@@ -277,13 +236,6 @@ begin function {}
 	set fBestZ to 0
 	set fBestDist to 0
 	set fBestRun to 0
-	set fGrabHeight to 0
-	set fGrabX to 0
-	set fGrabY to 0
-	set fGrabZ to 0
-	set fGrabDist to 0
-	set fGrabRun to 0
-	set fMode to 0
 	set fRun to 0
 	set fPrevZ to 0
 	set fHavePrev to 0
@@ -325,16 +277,7 @@ begin function {}
 		set fHavePrev to 1
 
 		set fSample to fHitZ - fStartZ
-		if fSample > fMaxHeight
-			if fSample > fGrabHeight
-				set fGrabHeight to fSample
-				set fGrabX to fOverX
-				set fGrabY to fOverY
-				set fGrabZ to fHitZ
-				set fGrabRun to fRun
-				set fGrabDist to fDist
-			endif
-		elseif fSample > fVaultHeight
+		if fSample > fVaultHeight
 			set fVaultHeight to fSample
 			set fBestX to fOverX
 			set fBestY to fOverY
@@ -352,19 +295,6 @@ begin function {}
 		Goto 1
 	endif
 
-	; Nothing in reach of the legs, but something in reach of the arms.
-	if fVaultHeight <= 0
-		if fGrabHeight > 0
-			set fMode to 1
-			set fVaultHeight to fGrabHeight
-			set fBestX to fGrabX
-			set fBestY to fGrabY
-			set fBestZ to fGrabZ
-			set fBestRun to fGrabRun
-			set fBestDist to fGrabDist
-		endif
-	endif
-
 	set fDepth to fBestRun * 4
 
 	; clear says how far ahead the head-height ray got: a small number means the
@@ -373,7 +303,7 @@ begin function {}
 	; the facing vector is the one piece of this built on an assumed convention;
 	; if it were backwards, every sweep would walk behind the player and hits
 	; would be zero everywhere.
-	PrintC "Mantle: air %.0f clear %.0f hits %.0f grab %.0f | h %.1f depth %.0f dir %.2f %.2f" fAir fClear fHits fMode fVaultHeight fDepth fDirX fDirY
+	PrintC "Mantle: air %.0f clear %.0f hits %.0f | h %.1f depth %.0f dir %.2f %.2f" fAir fClear fHits fVaultHeight fDepth fDirX fDirY
 
 	if fVaultHeight <= 0
 		return
@@ -415,32 +345,7 @@ begin function {}
 	; Clamped to the distance the head-height ray reached. That ray is the only
 	; evidence we have that the space is free, and SetPos does not check
 	; collision, so travelling past it would be moving on no evidence at all.
-	; How much room there is once we are up there, asked from up there.
-	;
-	; The sweep's clear ray cannot answer this any more. It is cast at the top of
-	; the window, and the window now reaches arm height, so it flies well over
-	; the player's head -- fine for deciding how far out to sample, useless as
-	; evidence that a body fits. This ray starts just above the ledge that won
-	; and looks the way we are about to travel, which is the question actually
-	; being asked. SkyParkour does the same thing and calls it the obstruction
-	; check.
-	set fOverZ to fBestZ + 20
-	set fCastOK to GetPointRayCastPos (fBestX) (fBestY) (fOverZ) (0) (fRayYaw) (fHitX) (fHitY) (fHitZ) 19 40
-	if fCastOK
-		set fRoom to GetVector3DDistance fHitX fHitY fOverZ fBestX fBestY fOverZ
-	else
-		set fRoom to 40
-	endif
-
-	set fAdd to 20
-	if fRoom < fAdd
-		set fAdd to fRoom - 4
-		if fAdd < 0
-			set fAdd to 0
-		endif
-	endif
-
-	set fGoDist to fBestDist + fAdd
+	set fGoDist to fBestDist + 20
 	if fGoDist > fClear
 		set fGoDist to fClear
 	endif
@@ -454,14 +359,6 @@ begin function {}
 	set fDuration to fDuration * 0.55
 	set fDuration to fDuration + 0.10
 
-	; Hauling yourself over something above your head is not the same effort as
-	; stepping onto a crate, and taking the same time over it is what would make
-	; the grab feel like a cheat.
-	if fMode
-		set fDuration to fDuration * 1.6
-	endif
-
-	player.AuxVarSetFlt "*_Mantle_Mode" fMode 0
 	player.AuxVarSetFlt "*_Mantle_Height" fVaultHeight 0
 	player.AuxVarSetFlt "*_Mantle_StartZ" fStartZ 0
 	player.AuxVarSetFlt "*_Mantle_Start" fStartX 0
