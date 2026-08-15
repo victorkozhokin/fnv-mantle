@@ -144,7 +144,16 @@ height of clearance above it. Walls, posts and NPCs fail that on their own.
 - `DisablePlayerControls 0 0 0 0 1 0 0` -- the fifth flag is looking. Disabling
   looking does not stand Player Physics down; only the movement flag does that.
 - `fATan2` and `V3Length` exist and are usable from a `.gek`. `fATan2` takes
-  `(y, x)` and returns degrees.
+  `(y, x)` and returns degrees. `fSin`, `fCos`, `fTan` also exist, in JIP.
+- `reference.SetActorVelocity axis:X/Y/Z velocity:float`, and it applies **for
+  one frame only** -- to hold a velocity you write it every frame.
+  **The getter and setter do not appear to share a scale.** The setter is
+  documented in units of 7 units per second; `GetActorVelocity` reads like raw
+  units per second (HUD Inertia caps it at 1000, which would be meaningless on
+  the other scale). Feeding one straight into the other would multiply the
+  player's speed sevenfold. Establish the factor before moving any measured
+  velocity through this pair -- a wrong guess launches the player rather than
+  failing quietly.
 - Signatures for all of the above came from the loose scripts under
   `/Volumes/Share/parkour/scripts`, which is faster and more reliable than
   geckwiki (which 403s).
