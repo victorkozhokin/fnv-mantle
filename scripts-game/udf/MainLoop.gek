@@ -63,6 +63,24 @@ begin function {}
 		player.AuxVarSetFlt "*_Mantle_Time" fVaultTime 0
 
 		if fVaultTime <= 0
+			; Hand back a body that is not already falling fast.
+			;
+			; The controller spends the whole climb believing it is in free fall,
+			; because it is: something is moving the player upward every frame and
+			; nothing is telling the physics about it, so gravity keeps
+			; integrating underneath. By the time control is handed back there is
+			; a fair amount of downward speed built up out of nothing, and the
+			; player drops off the top of what they just climbed.
+			;
+			; Zero is written rather than anything measured, because the two
+			; velocity functions do not appear to share a scale -- the setter is
+			; documented in units of 7 units per second while the getter reads
+			; like raw units per second, and guessing wrong there launches the
+			; player rather than failing quietly. Zero needs no conversion.
+			;
+			; This does not stop the fall, it only forgets the part of it that the
+			; climb invented. Gravity resumes from rest on the next frame.
+			player.SetActorVelocity Z 0
 			PPEndInteraction
 			return
 		endif
