@@ -1,0 +1,95 @@
+{
+ "modName": "Mantle",
+ "displayName": "$modDisplayName",
+ "description": "$modDescription",
+ "saveFile": "Mantle.ini",
+ "minMCMVersion": 1.0,
+ "minModVersion": 1.0,
+ "submenus": {
+  "1": {
+   "listTitle": "$climbing",
+   "pageTitle": "$climbing",
+   "active": 1,
+   "columns": 1,
+   "enable": 1,
+   "options": {
+    "1": {
+     "title": "$trigger",
+     "type": 0,
+     "enable": 1
+    },
+    "2": {
+     "title": "$auto",
+     "type": 5,
+     "enable": 1,
+     "mouse": "$autoMouse",
+     "vars": [
+      {
+       "configINI": "Mantle:bAuto",
+       "default": 0
+      }
+     ]
+    },
+    "3": {
+     "title": "$retry",
+     "type": 2.5,
+     "enable": 1,
+     "mouse": "$retryMouse",
+     "vars": [
+      {
+       "configINI": "Mantle:fRetry",
+       "default": 0.06
+      }
+     ],
+     "scale": {
+      "valueDecimal": 2,
+      "valueIncrement": 0.02,
+      "valueMin": 0.02,
+      "valueMax": 0.30
+     }
+    },
+    "4": {
+     "title": "$feel",
+     "type": 0,
+     "enable": 1
+    },
+    "5": {
+     "title": "$camera",
+     "type": 2.5,
+     "enable": 1,
+     "mouse": "$cameraMouse",
+     "vars": [
+      {
+       "configINI": "Mantle:fCamNudge",
+       "default": 16
+      }
+     ],
+     "scale": {
+      "valueDecimal": 0,
+      "valueIncrement": 1,
+      "valueMin": 0,
+      "valueMax": 30
+     }
+    },
+    "6": {
+     "title": "$push",
+     "type": 2.5,
+     "enable": 1,
+     "mouse": "$pushMouse",
+     "vars": [
+      {
+       "configINI": "Mantle:fPush",
+       "default": 40
+      }
+     ],
+     "scale": {
+      "valueDecimal": 0,
+      "valueIncrement": 5,
+      "valueMin": 0,
+      "valueMax": 80
+     }
+    }
+   }
+  }
+ }
+}

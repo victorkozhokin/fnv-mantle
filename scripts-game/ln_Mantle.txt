@@ -35,11 +35,18 @@ player.AuxVarSetFlt "*_Mantle_Sounds" 10 0
 ; and leaves the two weapon animations.
 player.AuxVarSetFlt "*_Mantle_LowMax" 0.35 0
 
-; Climbing without a key press works, and works well -- see STATE.md. It is off
-; while the rest is being built, because a trigger that fires on its own makes
-; every other bug look like a different bug. Turn it on from the console with:
-;   player.AuxVarSetFlt "*_Mantle_Auto" 1 0
+; Defaults for the four settings the MCM menu owns. They hold until the loop
+; manages to read Data\config\Mantle.ini, and permanently if that file is
+; missing -- see the sentinel check in MainLoop.gek.
+;
+; Climbing without a key press works, and works well; it is off by default
+; because a trigger that fires on its own makes every other oddity look like a
+; different one.
 player.AuxVarSetFlt "*_Mantle_Auto" 0 0
+
+; Seconds before a measurement that found nothing is tried again, and the whole
+; of the delay before a climb -- none of the tests wait any more.
+player.AuxVarSetFlt "*_Mantle_Retry" 0.06 0
 
 ; Whether Player Physics stands down for the lift. Off hands the player back to
 ; the engine's own movement for the duration, which also re-arms rooting and

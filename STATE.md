@@ -5,7 +5,7 @@ and RESEARCH.md and you are caught up.
 
 ## Shipped
 
-`Mantle-v46.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
+`Mantle-v47.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
 needed** -- the trigger reads `PPSpeedRatio`, `PPAirTime` and `PPInAir`, and an
 older Player Physics fails to compile the script at all, which kills the whole
 mod rather than one feature.
@@ -40,8 +40,13 @@ engine asked for and the distance actually covered.
   relative to where the player is *now*, so a jump moves the whole window up by
   the height of the jump. `0.70` was never "how tall an object may be", it is
   "how far above himself a person can haul themselves".
-- A 0.15 s cooldown is charged on every *attempt*, so leaning on a wall does not
-  cost thirty ray casts per frame.
+- **`*_Mantle_Retry` (0.06 s) is charged on every *attempt*, not every success,
+  and it is the whole of the delay before a climb.** None of the tests wait any
+  more -- with the key there is no speed test at all, and the keyless one
+  answers on the frame it is asked -- so what is left is what a measurement that
+  missed costs you, and a measurement misses whenever the player arrives at an
+  angle or a shade early. It also stops someone leaning on a wall from paying
+  thirty ray casts a frame, which is the reason not to take it to zero.
 - Blocked detection in Player Physics: compares `move.input` length against
   distance actually covered. Solid, confirmed over several sessions.
 - **No face-finding.** One forward ray at the top of the window says how far
@@ -145,6 +150,25 @@ engine asked for and the distance actually covered.
   because the heading convention is known from a working script and the velocity
   pair's scale is not, and a one-off shove is the case Player Physics' own
   knockback path is written for.
+
+## MCM
+
+`MCM/Mantle.json` writes `Data\config\Mantle.ini`; the loop reads it back once
+a second with `GetINIFloat`, since there is no plugin to be told the file
+changed. A second is well inside anyone's patience for a menu they just closed,
+and it keeps file access out of the moment of a climb.
+
+Four settings: automatic mode, retry delay, camera dip, forward push. Everything
+else stays in `ln_Mantle.txt` -- these are the four that were actually being
+tuned from the console.
+
+`iVersion` is a sentinel and the reason the refresh is safe. A missing file
+reads as zeroes rather than as an error, and one of those zeroes is the retry
+delay, which would put the sweep back to thirty ray casts every frame against
+any wall. Nothing is taken from the file unless `iVersion` is above zero, so
+the load script's defaults stand until the file is demonstrably there.
+
+Russian menu text ships in `MCM-RU/`, same arrangement as the other two mods.
 
 ## Settled: the keyless trigger
 

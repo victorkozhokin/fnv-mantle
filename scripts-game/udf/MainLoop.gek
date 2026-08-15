@@ -64,11 +64,47 @@ float fSprint
 float fSounds
 float fLow
 float fKey
+float fRetry
+float fCfg
+float fRead
 ref rIdle
 int iSnd
 string_var sSnd
 
 begin function {}
+
+	; MCM writes to Data\config\Mantle.ini and this reads it back, once a second.
+	;
+	; There is no plugin here to notice the file changed, so the loop has to look
+	; -- but not every frame, and not at the moment of a climb either, where the
+	; file access would land inside the one thing that has to feel immediate.
+	; A second is far below anyone's patience for a menu they just closed.
+	set fCfg to player.AuxVarGetFlt "*_Mantle_Cfg" 0
+	set fCfg to fCfg - GetSecondsPassed
+	if fCfg <= 0
+		set fCfg to 1
+
+		; A sentinel first, because a missing file reads as zeroes rather than as
+		; an error, and one of those zeroes is the retry delay -- which would put
+		; the sweep back to thirty ray casts every frame against any wall. So
+		; nothing is taken from the file unless the file is demonstrably there,
+		; and the load script's defaults stand until it is.
+		set fRead to GetINIFloat "Mantle:iVersion" "Mantle.ini"
+		if fRead > 0
+			set fRead to GetINIFloat "Mantle:bAuto" "Mantle.ini"
+			player.AuxVarSetFlt "*_Mantle_Auto" fRead 0
+
+			set fRead to GetINIFloat "Mantle:fRetry" "Mantle.ini"
+			player.AuxVarSetFlt "*_Mantle_Retry" fRead 0
+
+			set fRead to GetINIFloat "Mantle:fCamNudge" "Mantle.ini"
+			player.AuxVarSetFlt "*_Mantle_CamNudge" fRead 0
+
+			set fRead to GetINIFloat "Mantle:fPush" "Mantle.ini"
+			player.AuxVarSetFlt "*_Mantle_Push" fRead 0
+		endif
+	endif
+	player.AuxVarSetFlt "*_Mantle_Cfg" fCfg 0
 
 	; The view dips and comes back, and turning is left entirely alone.
 	;
@@ -278,15 +314,19 @@ begin function {}
 		return
 	endif
 
-	; Charge for the attempt, not for the success. Without the key there is
-	; nothing to stop a player leaning on a wall from paying thirty ray casts and
-	; a line of log every single frame, forever. A success overwrites this with
-	; its own longer wait, so nothing legitimate is slowed down.
+	; Charge for the attempt, not for the success. Without it there is nothing to
+	; stop a player leaning on a wall from paying thirty ray casts and a line of
+	; log every single frame, forever. A success overwrites this with its own
+	; longer wait, so nothing legitimate is slowed down.
 	;
-	; Kept short, because a failed attempt is not always a wall. Walking at a
-	; fence from an angle can miss on the first read and hit on the second, and
-	; this is the whole distance between the two.
-	player.AuxVarSetFlt "*_Mantle_Cooldown" 0.15 0
+	; This is the whole of the delay before a climb, and it is worth being clear
+	; about why: none of the *tests* wait any more. On the ground with the key
+	; there is no speed test at all, and the keyless one answers on the frame it
+	; is asked. What was left was this -- a failed read costing a fixed pause
+	; before the next one, and a read fails whenever the player arrives at an
+	; angle or a shade too early, which is most of the time a press feels late.
+	set fRetry to player.AuxVarGetFlt "*_Mantle_Retry" 0
+	player.AuxVarSetFlt "*_Mantle_Cooldown" fRetry 0
 
 	set fPlayerHeight to player.GetObjectDimensions Z
 	if fPlayerHeight < 1
