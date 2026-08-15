@@ -1,8 +1,6 @@
-float fBlocked
 float fAuto
 float fYield
 float fAir
-float fNeed
 float fVaultTime
 float fVaultHeight
 float fStartZ
@@ -19,28 +17,31 @@ float fMinHeight
 float fCastTopZ
 float fHeadBotZ
 float fLimit
-float fScanTopZ
 float fCastOK
 float fHitX
 float fYaw
-float fProbeZ
-float fFaceX
-float fFaceY
-float fFaceZ
-float fFaceDist
-float fCurDist
-float fStep
 float fSample
 float fBestX
 float fBestY
 float fBestZ
-float fFound
-float fRawBest
-float fPush
 float fOverX
 float fOverY
 float fHitY
 float fHitZ
+float fBestRun
+float fClear
+float fDelta
+float fDepth
+float fDirX
+float fDirY
+float fDist
+float fHavePrev
+float fHits
+float fPrevZ
+float fRayYaw
+float fRun
+float fSweep
+float fWindow
 ref rIdle
 
 begin function {}
@@ -82,19 +83,7 @@ begin function {}
 		return
 	endif
 
-	; Walking into the thing is the whole intent, so the key is optional.
-	;
-	; And the wait after that is as short as the measurement allows. A longer one
-	; was meant to separate shoving on purpose from bumping by accident, which
-	; sounds right and is not: running into geometry is nearly always an accident
-	; to begin with, so nobody is on the far side of that filter. All the delay
-	; ever did was make the honest case feel dead.
-	;
-	; What remains -- three frames -- is not a filter. It is the shortest run of
-	; frames from which "stopped" can be told apart from a landing or a scrape
-	; along a wall.
 	set fAuto to player.AuxVarGetFlt "*_Mantle_Auto" 0
-	set fNeed to 0.05
 
 	; Jump is no longer accepted as an activate key. It has a job of its own now:
 	; getting high enough that the measurement below can reach the top of
@@ -104,18 +93,27 @@ begin function {}
 		return
 	endif
 
-	; In the air, being blocked is not a signal that will ever arrive. Nothing
-	; stops a jump against a wall -- the player is not held up and slowed, they
-	; simply travel until they arrive, and the distance covered each frame stays
-	; exactly what was asked for. Waiting for a stall up here waits forever.
+	; Not "has the player been stuck for a while" but "is the player getting
+	; anywhere right now". The blocked timer needs history before it can answer,
+	; and the three frames it needed were three frames of the climb feeling dead.
+	; The ratio is true on the frame it happens.
 	;
-	; Which is fine, because being airborne is itself the deliberate act. Nobody
-	; leaves the ground facing a wall by accident, so the jump replaces the stall
-	; as the thing that says this was meant.
+	; SkyParkour reaches the same place from the other side, refusing to climb
+	; while the player is still moving at more than a fifth of their commanded
+	; speed. Same test, no accumulation.
+	;
+	; In the air the question does not apply at all: nothing stops a jump against
+	; a wall, so the ratio stays at 1 and a stall never arrives. Airborne is its
+	; own permission -- but not immediately. The first fraction of a second off
+	; the ground is spent at ankle height with nothing yet in reach, so a climb
+	; asked for there is a climb asked for too early.
 	set fAir to PPInAir
-	if fAir == 0
-		set fBlocked to PPBlockedTime
-		if fBlocked < fNeed
+	if fAir
+		if PPAirTime < 0.17
+			return
+		endif
+	else
+		if PPSpeedRatio > 0.25
 			return
 		endif
 	endif
@@ -160,122 +158,131 @@ begin function {}
 	set fMaxHeight to fPlayerHeight * 0.70
 	set fMinHeight to fPlayerHeight * 0.14
 
+	; The window, and the two facts that fall out of bounding a ray to it.
+	;
+	; The downward rays used to run 200 units and were therefore guaranteed to
+	; find something -- the floor, if nothing else -- so a miss reported a height
+	; of zero and read exactly like finding nothing at all. That ambiguity cost an
+	; evening. A ray that starts at the top of the reachable range and is only as
+	; long as the range itself cannot reach the floor: a hit is a ledge, a miss is
+	; a miss, and no sample can land outside the limits because the ray cannot.
+	;
+	; So the lower bound is enforced by the geometry of the cast rather than by a
+	; test afterwards, and the test afterwards is gone.
 	set fCastTopZ to fStartZ + fMaxHeight
-	set fCastTopZ to fCastTopZ + 16
+	set fWindow to fMaxHeight - fMinHeight
 
-	; Two casts, because one cannot be both angled and distance-independent. A
-	; single ray leaving the head at 45 degrees reaches climbing height only a
-	; couple of dozen units ahead, so standing slightly too far back sends it
-	; over the obstacle and into the ground beyond -- which is why this used to
-	; need the crosshair placed just so.
+	; Sweeping outward and probing down, rather than finding the face and stepping
+	; past it.
 	;
-	; The face is looked for at several heights, and the NEAREST hit wins.
+	; Finding the face first was always the fragile half. It needed a scan up
+	; several heights because one ray slips between fence boards, and then an
+	; offset past whatever it found, and no single offset is right -- too little
+	; reads the near side, too much clears a thin rail entirely.
 	;
-	; Taking the first hit from the bottom up was wrong in the one case this scan
-	; exists for. An ankle-high ray slips through the gap under a picket fence,
-	; travels on, and lands on a shack wall seventy units behind it. That counts
-	; as a hit, so the scan stops, and every downward ray afterwards is measuring
-	; the ground beyond the shack. Rows of honest zeroes.
+	; None of that is needed. The rays going down do not care what is in front of
+	; the player; they only care where the ground is at a series of distances. So
+	; walk out along the facing at a fixed spacing, drop a ray at each stop, and
+	; let the highest surface win. The face never has to be located at all.
 	;
-	; Whatever is closest is the thing being walked into, at whatever height it
-	; happens to present a surface.
-	set fYaw to -player.GetAngle Z
-	set fScanTopZ to fStartZ + fMaxHeight
-	set fProbeZ to fStartZ + 6
-	set fFound to 0
-	set fFaceDist to 9999
+	; A single forward ray at the top of the window says how far out is worth
+	; walking. If it hits, everything past that point is inside something and the
+	; obstacle is taller than a person can climb anyway. SkyParkour grows this ray
+	; one step at a time; one cast returns the same distance for a fraction of the
+	; cost.
+	set fYaw to player.GetAngle Z
+	set fDirX to fSin fYaw
+	set fDirY to fCos fYaw
+	set fRayYaw to 0 - fYaw
 
-	Label 2
-	set fCastOK to GetPointRayCastPos (fStartX) (fStartY) (fProbeZ) (0) (fYaw) (fHitX) (fHitY) (fHitZ) 19 80
+	set fSweep to fPlayerHeight * 0.55
+	set fCastOK to GetPointRayCastPos (fStartX) (fStartY) (fCastTopZ) (0) (fRayYaw) (fHitX) (fHitY) (fHitZ) 19 fSweep
 	if fCastOK
-		set fCurDist to GetVector3DDistance fHitX fHitY fStartZ fStartX fStartY fStartZ
-		if fCurDist < fFaceDist
-			set fFaceDist to fCurDist
-			set fFaceX to fHitX
-			set fFaceY to fHitY
-			set fFaceZ to fProbeZ
-			set fFound to 1
-		endif
-	endif
-	set fProbeZ to fProbeZ + 8
-	if fProbeZ < fScanTopZ
-		Goto 2
+		set fClear to GetVector3DDistance fHitX fHitY fCastTopZ fStartX fStartY fCastTopZ
+	else
+		set fClear to fSweep
 	endif
 
-	if fFound == 0
-		PrintC "Mantle: no face"
-		return
-	endif
-	if fFaceDist < 1
-		return
-	endif
-
-	; A fan of downward rays rather than one at a guessed distance.
-	;
-	; One ray needs an offset past the face, and no single offset is right: too
-	; little catches the near side and reads the ground, too much clears a thin
-	; fence rail and reads the ground behind it. Tuning that number per object
-	; is not a plan when the game is full of geometry nobody has looked at.
-	;
-	; The offsets are evenly spaced, not doubling. A fence board is a couple of
-	; units thick; a fan that jumps 3, 5, 10, 17 steps straight over it and
-	; reports the floor on both sides. Even spacing at three units cannot miss
-	; anything a person could stand on.
 	set fVaultHeight to 0
-	set fOverX to 0
-	set fOverY to 0
 	set fBestX to 0
 	set fBestY to 0
-	set fStep to 1
-	set fRawBest to 0
+	set fBestZ to 0
+	set fBestRun to 0
+	set fRun to 0
+	set fPrevZ to 0
+	set fHavePrev to 0
+	set fHits to 0
+	set fDist to 6
 
 	Label 1
-	set fPush to fFaceDist + fStep
-	set fPush to fPush / fFaceDist
-	set fOverX to fFaceX - fStartX
-	set fOverX to fOverX * fPush
+	set fOverX to fDirX * fDist
 	set fOverX to fStartX + fOverX
-	set fOverY to fFaceY - fStartY
-	set fOverY to fOverY * fPush
+	set fOverY to fDirY * fDist
 	set fOverY to fStartY + fOverY
 
-	set fCastOK to GetPointRayCastPos (fOverX) (fOverY) (fCastTopZ) (-90) (0) (fHitX) (fHitY) (fHitZ) 19 200
+	set fCastOK to GetPointRayCastPos (fOverX) (fOverY) (fCastTopZ) (-90) (0) (fHitX) (fHitY) (fHitZ) 19 fWindow
 	if fCastOK
-		set fSample to fHitZ - fStartZ
-		if fSample > fRawBest
-			set fRawBest to fSample
-		endif
-		if fSample > fVaultHeight
-			if fSample <= fMaxHeight
-				set fVaultHeight to fSample
-				set fBestX to fOverX
-				set fBestY to fOverY
-				set fBestZ to fHitZ
+		set fHits to fHits + 1
+
+		; Depth, for free. Consecutive stops that come back at the same height are
+		; one flat surface, and how many of them there are is how deep it is.
+		; A run of one is a rail or a fence board; a long run is something with a
+		; top a person could stand on.
+		;
+		; Nothing is gated on this yet -- thin fences are exactly what finally
+		; started working, and refusing them to gain tidiness is a bad trade. It
+		; is measured and printed so the next decision has numbers behind it.
+		if fHavePrev
+			set fDelta to fHitZ - fPrevZ
+			if fDelta < 0
+				set fDelta to 0 - fDelta
 			endif
+			if fDelta <= 6
+				set fRun to fRun + 1
+			else
+				set fRun to 1
+			endif
+		else
+			set fRun to 1
 		endif
+		set fPrevZ to fHitZ
+		set fHavePrev to 1
+
+		set fSample to fHitZ - fStartZ
+		if fSample > fVaultHeight
+			set fVaultHeight to fSample
+			set fBestX to fOverX
+			set fBestY to fOverY
+			set fBestZ to fHitZ
+			set fBestRun to fRun
+		endif
+	else
+		set fHavePrev to 0
+		set fRun to 0
 	endif
 
-	set fStep to fStep + 3
-	if fStep < 64
+	set fDist to fDist + 4
+	if fDist <= fClear
 		Goto 1
 	endif
 
-	; One line per attempt. The face figures are here because a bad height is
-	; almost always a bad face: the wrong surface was found, at the wrong
-	; distance, and the fan then measured somewhere nobody was standing.
-	PrintC "Mantle: air %.0f face %.0f | height %.1f raw %.1f (min %.0f max %.0f)" fAir fFaceDist fVaultHeight fRawBest fMinHeight fMaxHeight
+	set fDepth to fBestRun * 4
 
-	; The loop leaves fHitZ holding whatever the *last* ray found, which is
-	; usually the floor well past the obstacle. Everything downstream has to use
-	; the winner's own coordinates instead -- the headroom test was measuring
-	; from the ground and refusing every climb the fan had just approved.
+	; clear says how far ahead the head-height ray got: a small number means the
+	; obstacle is taller than the window, which is a different failure from
+	; finding nothing, and used to be indistinguishable. dir is printed because
+	; the facing vector is the one piece of this built on an assumed convention;
+	; if it were backwards, every sweep would walk behind the player and hits
+	; would be zero everywhere.
+	PrintC "Mantle: air %.0f clear %.0f hits %.0f | h %.1f depth %.0f dir %.2f %.2f" fAir fClear fHits fVaultHeight fDepth fDirX fDirY
+
+	if fVaultHeight <= 0
+		return
+	endif
+
 	set fOverX to fBestX
 	set fOverY to fBestY
 	set fHitZ to fBestZ
-
-	if fVaultHeight < fMinHeight
-		return
-	endif
 
 	set fHeadBotZ to fHitZ + 4
 	set fLimit to fHitZ + fPlayerHeight

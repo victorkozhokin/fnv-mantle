@@ -14,8 +14,15 @@ animation. The plugin it started as was deleted once the detection moved.
 ## What works
 
 - Trigger: hold forward and activate (control **5**, not 12 -- Climbing's
-  comment is wrong), 0.05 s of being blocked. The keyless variant is below.
-  Jump is no longer an activate key.
+  comment is wrong). Jump is no longer an activate key.
+- **No wait.** `PPSpeedRatio` (moved over asked-for, 0 to 1) must be under 0.25.
+  This replaces `PPBlockedTime`, which needed history before it could answer and
+  so cost three frames of feeling dead. Same test as SkyParkour's Smart Climb,
+  which refuses to climb above a fifth of commanded speed.
+  `PPBlockedTime` is still exported; nothing uses it.
+- Airborne uses `PPAirTime >= 0.17` instead, since the ratio never drops in the
+  air -- nothing stops a jump against a wall. The delay keeps a climb from being
+  asked for at ankle height in the first moments of the jump.
 - **Jump mantling.** Airborne (`PPInAir`) replaces the blocked test entirely, on
   the grounds that nothing stops a jump against a wall so the stall never
   arrives, and that leaving the ground at a wall is deliberate in a way that
@@ -27,10 +34,25 @@ animation. The plugin it started as was deleted once the detection moved.
   cost thirty ray casts per frame.
 - Blocked detection in Player Physics: compares `move.input` length against
   distance actually covered. Solid, confirmed over several sessions.
-- Face-finding: horizontal casts from `startZ + 6` up to `startZ + maxHeight` in
-  8 unit steps. The **nearest** hit wins, not the first one from the bottom.
-- Height: a fan of downward casts every 3 units from 1 to 64 past the face.
-  Highest surface within range wins.
+- **No face-finding.** One forward ray at the top of the window says how far
+  ahead is clear; the sweep then walks outward along the facing every 4 units
+  and drops a ray down at each stop. The downward rays do not care what is in
+  front of the player, so the face never has to be located -- which removes the
+  vertical scan, the offset-past-the-face, and every failure that came from
+  choosing that offset. From SkyParkour, inverted.
+- **The downward rays are bounded to the window**: they start at
+  `startZ + maxHeight` and are `maxHeight - minHeight` long, so they cannot
+  reach the floor. A hit is a ledge, a miss is a miss. The old 200 unit rays
+  always found the ground and reported zero, which read exactly like finding
+  nothing; that ambiguity cost an evening. The minimum-height test afterwards is
+  gone -- the cast geometry enforces it.
+- **Depth is measured**: consecutive stops at the same height are one surface,
+  and the run length times the 4 unit spacing is how deep it is. Printed, not
+  gated on -- thin fences are what finally started working and are exactly what
+  a depth requirement would refuse.
+- The facing vector comes from `fSin`/`fCos` of `GetAngle Z` and is the one
+  piece built on an assumed convention. It is printed in the debug line for
+  that reason.
 - Motion: `SetPos Z` along `1-(1-t)^2`, duration scaled by height. Forward
   travel comes from the player's own held key.
 - Physics suppressed for the duration via `PPBeginInteraction`, switchable with
