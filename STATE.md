@@ -5,7 +5,7 @@ and RESEARCH.md and you are caught up.
 
 ## Shipped
 
-`Mantle-v47.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
+`Mantle v48.7z` in `nexus/release/mantle/` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
 needed** -- the trigger reads `PPSpeedRatio`, `PPAirTime` and `PPInAir`, and an
 older Player Physics fails to compile the script at all, which kills the whole
 mod rather than one feature.
@@ -210,7 +210,9 @@ height of clearance above it. Walls, posts and NPCs fail that on their own.
   nothing, with the forward move delayed to `t^3` to read as hauling rather than
   stepping. It worked and did not help. If it comes back it should probably wait
   for a real hanging animation, since the thing it was missing was the hang.
-- Debug `PrintC` output is still on.
+- Debug `PrintC` output is **behind `*_Mantle_Debug`, off by default**, with an
+  MCM toggle. Kept rather than deleted: the log is how every problem in here was
+  found and the next one will be found the same way.
 
 ## Hard-won facts
 

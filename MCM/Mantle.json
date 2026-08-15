@@ -45,7 +45,7 @@
       "valueDecimal": 2,
       "valueIncrement": 0.02,
       "valueMin": 0.02,
-      "valueMax": 0.30
+      "valueMax": 0.3
      }
     },
     "4": {
@@ -88,6 +88,18 @@
       "valueMin": 0,
       "valueMax": 80
      }
+    },
+    "7": {
+     "title": "$debug",
+     "type": 5,
+     "enable": 1,
+     "mouse": "$debugMouse",
+     "vars": [
+      {
+       "configINI": "Mantle:bDebug",
+       "default": 0
+      }
+     ]
     }
    }
   }

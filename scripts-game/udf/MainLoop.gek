@@ -67,11 +67,19 @@ float fKey
 float fRetry
 float fCfg
 float fRead
+float fDebug
 ref rIdle
 int iSnd
 string_var sSnd
 
 begin function {}
+
+	; Every line this mod prints is behind this, and it is off unless asked for.
+	;
+	; Kept rather than deleted: the log is how every problem in here was found,
+	; and the next one will be found the same way. Deleting it would mean writing
+	; it again from memory at the worst possible moment.
+	set fDebug to player.AuxVarGetFlt "*_Mantle_Debug" 0
 
 	; MCM writes to Data\config\Mantle.ini and this reads it back, once a second.
 	;
@@ -102,6 +110,9 @@ begin function {}
 
 			set fRead to GetINIFloat "Mantle:fPush" "Mantle.ini"
 			player.AuxVarSetFlt "*_Mantle_Push" fRead 0
+
+			set fRead to GetINIFloat "Mantle:bDebug" "Mantle.ini"
+			player.AuxVarSetFlt "*_Mantle_Debug" fRead 0
 		endif
 	endif
 	player.AuxVarSetFlt "*_Mantle_Cfg" fCfg 0
@@ -481,7 +492,9 @@ begin function {}
 	; the facing vector is the one piece of this built on an assumed convention;
 	; if it were backwards, every sweep would walk behind the player and hits
 	; would be zero everywhere.
-	PrintC "Mantle: air %.0f clear %.0f hits %.0f | h %.1f rise %.0f depth %.0f" fAir fClear fHits fVaultHeight fRise fDepth
+	if fDebug
+		PrintC "Mantle: air %.0f clear %.0f hits %.0f | h %.1f rise %.0f depth %.0f" fAir fClear fHits fVaultHeight fRise fDepth
+	endif
 
 	if fVaultHeight <= 0
 		return
@@ -496,7 +509,9 @@ begin function {}
 	set fCastOK to GetPointRayCastPos (fOverX) (fOverY) (fHeadBotZ) (90) (0) (fHitX) (fHitY) (fHitZ) 19 200
 	if fCastOK != 0
 		if fHitZ < fLimit
-			PrintC "Mantle: no headroom"
+			if fDebug
+				PrintC "Mantle: no headroom"
+			endif
 			return
 		endif
 	endif
@@ -520,7 +535,9 @@ begin function {}
 	; ground gains a unit or two per stop, a ledge arrives all at once.
 	if fVaultHeight < fLowMax
 		if fRise < 10
-			PrintC "Mantle: low, no step (rise %.0f depth %.0f)" fRise fDepth
+			if fDebug
+				PrintC "Mantle: low, no step (rise %.0f depth %.0f)" fRise fDepth
+			endif
 			return
 		endif
 	endif
@@ -602,7 +619,9 @@ begin function {}
 	player.AuxVarSetFlt "*_Mantle_Time" fDuration 0
 	player.AuxVarSetFlt "*_Mantle_Cooldown" 0.5 0
 
-	PrintC "Mantle: GO height %.1f forward %.0f duration %.2f" fVaultHeight fGoDist fDuration
+	if fDebug
+		PrintC "Mantle: GO height %.1f forward %.0f duration %.2f" fVaultHeight fGoDist fDuration
+	endif
 
 	; Standing Player Physics down for the lift is not one decision, it is four,
 	; and they do not all point the same way.
@@ -695,7 +714,9 @@ begin function {}
 			set rIdle to player.AuxVarGetRef "*_Mantle_IdleB"
 		endif
 
-		PrintC "Mantle: anim sprint %.0f low %.0f snd %.0f" fSprint fLow iSnd
+		if fDebug
+			PrintC "Mantle: anim sprint %.0f low %.0f snd %.0f" fSprint fLow iSnd
+		endif
 		player.ForcePlayIdle rIdle
 	endif
 

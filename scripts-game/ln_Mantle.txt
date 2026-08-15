@@ -48,6 +48,9 @@ player.AuxVarSetFlt "*_Mantle_Auto" 0 0
 ; of the delay before a climb -- none of the tests wait any more.
 player.AuxVarSetFlt "*_Mantle_Retry" 0.06 0
 
+; Console output for diagnosing a climb that will not fire. Off for play.
+player.AuxVarSetFlt "*_Mantle_Debug" 0 0
+
 ; Whether Player Physics stands down for the lift. Off hands the player back to
 ; the engine's own movement for the duration, which also re-arms rooting and
 ; real fall distance -- see MainLoop.gek, where the trade is written out.
