@@ -5,7 +5,7 @@ and RESEARCH.md and you are caught up.
 
 ## Shipped
 
-`Mantle-v40.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
+`Mantle-v41.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
 needed** -- the trigger reads `PPSpeedRatio`, `PPAirTime` and `PPInAir`, and an
 older Player Physics fails to compile the script at all, which kills the whole
 mod rather than one feature.
@@ -80,20 +80,23 @@ engine asked for and the distance actually covered.
   swaps that to the engine's value for the length of the climb and back again --
   a discontinuity dropped into the middle of the jump arc. Rooting is re-armed
   exactly while the idle plays, and the faked fall distance goes with it.
-- Camera held on the obstacle for `*_Mantle_CamDur` (0.9 s) **on its own clock,
-  not the climb's** -- tying it to the climb was the whole of the twitch, since
-  a low crate is over in four tenths and splitting that between a look down and
-  a look back reads as a flinch however it is eased. Looking control taken away, yaw frozen at the GO heading (already aimed
-  at the obstacle, since that is how it was found), pitch pulled down in a
-  capped look-at at the winning sample and then returned, with the starting
-  angle written out exactly on release.
-  This was removed after v31 on the theory that camera work belongs in the
-  animation. It does -- but an animation cannot pull the *view* down in first
-  person, only the body, so the two were never alternatives. Restored in v38.
-  Two numbers that only play can give you: the honest angle to a waist-high top
-  is ~60 degrees down, a stare at one's own boots, hence
-  `*_Mantle_CamPitchMax` = 22; and the view must be put back, or the player is
-  left aiming at the floor with no idea why.
+- **The camera is weighted, never taken.** `*_Mantle_CamDur` (0.9 s) on its own
+  clock, not the climb's.
+  Two additive effects and no `DisablePlayerControls` anywhere: pitch gets a
+  downward nudge of `*_Mantle_CamNudge` (16 degrees, scaled by how far the climb
+  actually goes) on a half sine, so it swells and fades and returns to zero on
+  its own; and yaw is lagged toward the mouse at `*_Mantle_CamDrag` (7 /s),
+  which is delay, not loss. Last frame's nudge is subtracted before this frame's
+  is computed, so the angle underneath stays exactly the player's own and
+  nothing accumulates.
+  **Do not lock the view again.** It was locked in v29-v31 and again in
+  v38-v39, on the theory that the animation needs something to be seen against.
+  It does show the animation, and it is not worth it -- looking around during a
+  climb is most of the point of climbing, and a mouse that stops answering
+  reads as a bug long before it reads as a flourish. Both attempts ended the
+  same way.
+  The load script still hands the looking control back, for saves made while it
+  was being held.
 - **Three animations**, chosen at the moment of the climb. Each is cloned onto
   its own throwaway form at load, so the choice is which form to hand
   `ForcePlayIdle` rather than a path swapped under time pressure.

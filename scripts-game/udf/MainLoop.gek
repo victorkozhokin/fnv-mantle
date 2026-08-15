@@ -49,19 +49,17 @@ float fGoY
 float fNewX
 float fNewY
 float fCamYaw
-float fTopX
-float fTopY
-float fTopZ
-float fCurX
-float fCurY
-float fCurZ
-float fEyeZ
-float fLookDist
 float fPitch
 float fPitchWant
-float fPitch0
-float fPitchMax
-float fRate
+float fEnv
+float fOff
+float fLastOff
+float fDrag
+float fK
+float fCurYaw
+float fPrevYaw
+float fNewYaw
+float fCamNudge
 float fCamTime
 float fCamDur
 float fPushForce
@@ -75,83 +73,75 @@ ref rWeap
 
 begin function {}
 
-	; The camera runs on its own clock, not the climb's.
+	; The camera is weighted, not taken.
 	;
-	; Tying it to the climb was the whole of the twitch. A low crate is over in
-	; four tenths of a second, so the view had two tenths to go down and two to
-	; come back, and no easing rate makes that read as anything but a flinch --
-	; a slower rate inside the same window just means a smaller flinch. What was
-	; needed was more time, so the view now outlasts the climb and finishes in its
-	; own time.
+	; Holding the view still did show the animation, and it was worth less than
+	; what it cost: being able to look around during a climb is most of the point
+	; of climbing, and a mouse that stops answering is a bug in every player's
+	; hands before it is a flourish. So nothing is disabled here and nothing is
+	; aimed anywhere. The view stays the player's; it is only given some mass.
+	;
+	; Two effects, both additive to whatever the player is doing:
+	;
+	; Pitch gets a nudge downward that swells and fades on a half sine -- zero at
+	; both ends, most at the middle of the climb. Because the envelope returns to
+	; zero on its own, there is no restore step and nothing to drift: last
+	; frame's nudge is subtracted before this frame's is worked out, so the angle
+	; underneath is always the player's own.
+	;
+	; Yaw is lagged rather than moved. What the mouse asked for still arrives,
+	; just not instantly, which is what weight feels like.
 	set fCamTime to player.AuxVarGetFlt "*_Mantle_CamTime" 0
 	if fCamTime > 0
 		set fCamDur to player.AuxVarGetFlt "*_Mantle_CamTotal" 0
 		set fCamTime to fCamTime - GetSecondsPassed
 		player.AuxVarSetFlt "*_Mantle_CamTime" fCamTime 0
 
-		set fPitch0 to player.AuxVarGetFlt "*_Mantle_CamPitch0" 0
+		; The player's own pitch, with our previous contribution removed. The
+		; engine adds the mouse delta on top of whatever was written last frame,
+		; so subtracting the nudge leaves exactly the aim they asked for.
+		set fLastOff to player.AuxVarGetFlt "*_Mantle_CamOff" 0
+		set fPitch to player.GetAngle X
+		set fPitch to fPitch - fLastOff
 
-		if fCamTime <= 0
-			; Written out exactly. Easing lands about a degree short, and a
-			; degree per climb accumulates over an evening.
-			player.SetAngle X fPitch0
-			EnablePlayerControls 0 0 0 0 1 0 0
-		else
+		set fOff to 0
+		if fCamTime > 0
 			set fT to fCamDur - fCamTime
 			set fT to fT / fCamDur
-			set fCamYaw to player.AuxVarGetFlt "*_Mantle_CamYaw" 0
+			set fEnv to fT * 180
+			set fEnv to fSin fEnv
+			set fOff to player.AuxVarGetFlt "*_Mantle_CamNudgeNow" 0
+			set fOff to fOff * fEnv
+		endif
 
-			if fT < 0.45
-				set fRate to 8
+		set fPitchWant to fPitch + fOff
+		player.SetAngle X fPitchWant
+		player.AuxVarSetFlt "*_Mantle_CamOff" fOff 0
 
-				set fTopX to player.AuxVarGetFlt "*_Mantle_Top" 0
-				set fTopY to player.AuxVarGetFlt "*_Mantle_Top" 1
-				set fTopZ to player.AuxVarGetFlt "*_Mantle_Top" 2
+		set fDrag to player.AuxVarGetFlt "*_Mantle_CamDrag" 0
+		if fDrag > 0
+			set fCurYaw to player.GetAngle Z
+			set fPrevYaw to player.AuxVarGetFlt "*_Mantle_CamPrevYaw" 0
 
-				player.GetPosEx (fCurX) (fCurY) (fCurZ)
-				set fPlayerHeight to player.GetObjectDimensions Z
-				if fPlayerHeight < 1
-					set fPlayerHeight to 128
-				endif
-
-				; From the eyes, not the feet, or the angle is wrong by the whole
-				; height of the player at the moment it matters most.
-				set fEyeZ to fPlayerHeight * 0.85
-				set fEyeZ to fCurZ + fEyeZ
-				set fLookDist to GetVector3DDistance fTopX fTopY fCurZ fCurX fCurY fCurZ
-				if fLookDist < 4
-					set fLookDist to 4
-				endif
-				set fPitchWant to fTopZ - fEyeZ
-				set fPitchWant to fATan2 fPitchWant fLookDist
-
-				; Positive GetAngle X looks *down*, and the geometric angle is
-				; positive upwards, so it is negated going in.
-				set fPitchWant to 0 - fPitchWant
-
-				; The honest angle to a waist-high top is around sixty degrees
-				; down, which is a stare at one's own boots. The cap is what
-				; turns it into a glance at the ledge.
-				set fPitchMax to player.AuxVarGetFlt "*_Mantle_CamPitchMax" 0
-				if fPitchWant > fPitchMax
-					set fPitchWant to fPitchMax
-				endif
-				if fPitchWant < 0 - fPitchMax
-					set fPitchWant to 0 - fPitchMax
-				endif
-			else
-				set fPitchWant to fPitch0
-				set fRate to 10
+			; Around the wrap, or a heading crossing north spins the player the
+			; long way about.
+			set fDelta to fCurYaw - fPrevYaw
+			if fDelta > 180
+				set fDelta to fDelta - 360
+			endif
+			if fDelta < 0 - 180
+				set fDelta to fDelta + 360
 			endif
 
-			set fPitch to player.GetAngle X
-			set fPitch to fPitchWant - fPitch
-			set fPitch to fPitch * fRate
-			set fPitch to fPitch * GetSecondsPassed
-			set fPitch to player.GetAngle X + fPitch
+			set fK to fDrag * GetSecondsPassed
+			if fK > 1
+				set fK to 1
+			endif
 
-			player.SetAngle X fPitch
-			player.SetAngle Z fCamYaw
+			set fNewYaw to fDelta * fK
+			set fNewYaw to fPrevYaw + fNewYaw
+			player.SetAngle Z fNewYaw
+			player.AuxVarSetFlt "*_Mantle_CamPrevYaw" fNewYaw 0
 		endif
 	endif
 
@@ -522,24 +512,24 @@ begin function {}
 	set fDuration to fDuration * 0.55
 	set fDuration to fDuration + 0.10
 
-	; The winning ray's own landing point, so the view can be aimed at it every
-	; frame. The sweep already found it; nothing here has to be guessed.
-	player.AuxVarSetFlt "*_Mantle_Top" fBestX 0
-	player.AuxVarSetFlt "*_Mantle_Top" fBestY 1
-	player.AuxVarSetFlt "*_Mantle_Top" fBestZ 2
-
-	set fCamYaw to player.GetAngle Z
-	player.AuxVarSetFlt "*_Mantle_CamYaw" fCamYaw 0
-
-	; Where the view was before any of this touched it, so it can be put back.
-	set fPitch0 to player.GetAngle X
-	player.AuxVarSetFlt "*_Mantle_CamPitch0" fPitch0 0
+	; Scaled by how far this climb actually goes, so a kerb reads as a step and a
+	; wall reads as an effort. The measurement is already in hand, so this costs
+	; nothing and beats one constant standing in for every obstacle.
+	set fCamNudge to player.AuxVarGetFlt "*_Mantle_CamNudge" 0
+	set fCamNudge to fCamNudge * fPickH
+	set fCamNudge to fCamNudge / fMaxHeight
 
 	set fCamDur to player.AuxVarGetFlt "*_Mantle_CamDur" 0
 	if fCamDur > 0
 		player.AuxVarSetFlt "*_Mantle_CamTotal" fCamDur 0
 		player.AuxVarSetFlt "*_Mantle_CamTime" fCamDur 0
-		DisablePlayerControls 0 0 0 0 1 0 0
+		player.AuxVarSetFlt "*_Mantle_CamNudgeNow" fCamNudge 0
+		player.AuxVarSetFlt "*_Mantle_CamOff" 0 0
+
+		; Seeded with the heading we start from, or the first frame of drag
+		; measures against a stale one and snaps.
+		set fCamYaw to player.GetAngle Z
+		player.AuxVarSetFlt "*_Mantle_CamPrevYaw" fCamYaw 0
 	endif
 
 	; The heading for the parting shove, in the convention PushActorNoRagdoll

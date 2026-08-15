@@ -43,11 +43,24 @@ player.AuxVarSetFlt "*_Mantle_Auto" 0 0
 ;   player.AuxVarSetFlt "*_Mantle_Yield" 0 0
 player.AuxVarSetFlt "*_Mantle_Yield" 1 0
 
-; How long the view is held, in seconds, on its own clock rather than the
-; climb's -- a low crate is over in four tenths, and splitting that between a
-; look down and a look back reads as a flinch however it is eased. The first
-; 45% pulls the view onto the ledge, the rest puts it back. 0 turns it off.
+; How long the camera carries the weight of the climb, in seconds, on its own
+; clock rather than the climb's -- a low crate is over in four tenths, and
+; anything shaped inside that window reads as a flinch. 0 turns it off.
+;
+; Nothing is locked. The view stays the player's throughout; these only add to
+; it. Holding it still was tried in v29-v31 and again in v38-v39 and is worse
+; than it sounds -- looking around during a climb is most of the point.
 player.AuxVarSetFlt "*_Mantle_CamDur" 0.9 0
+
+; Degrees the view is nudged down at the middle of a full-height climb, swelling
+; and fading on a half sine so it returns on its own. Scaled by how far the
+; climb actually goes, so a kerb barely registers.
+player.AuxVarSetFlt "*_Mantle_CamNudge" 16 0
+
+; How quickly the view catches up with the mouse while climbing, in 1/seconds.
+; Lower is heavier. This is lag, not loss: everything asked for still arrives.
+; 0 removes the weight and leaves the mouse exact.
+player.AuxVarSetFlt "*_Mantle_CamDrag" 7 0
 
 ; How hard the player is shoved forward as the climb releases, in the units
 ; PushActorNoRagdoll takes. The climb arrives on top with no velocity of its
@@ -55,17 +68,16 @@ player.AuxVarSetFlt "*_Mantle_CamDur" 0.9 0
 ; player from stopping dead up there. 0 turns it off.
 player.AuxVarSetFlt "*_Mantle_Push" 40 0
 
-; How far down the view may be pulled, in degrees. The true angle to the top of
-; a waist-high fence is around sixty, which is a stare at the floor; this is the
-; glance that was actually wanted.
-player.AuxVarSetFlt "*_Mantle_CamPitchMax" 22 0
-
-; A climb that never finished -- saved during one, or crashed out of one -- would
-; otherwise resume on load and move the player, and would leave the looking
-; control taken away with nothing running that knows to give it back. Costs
-; nothing when there was no climb.
+; A climb that never finished -- saved during one, or crashed out of one --
+; would otherwise resume on load and move the player. The pitch nudge is cleared
+; with it, or the next climb subtracts one that is no longer applied.
+;
+; The looking control is handed back for saves made under v29-v31 or v38-v39,
+; which took it away for the duration. Nothing takes it any more; this is only
+; the way out of a save that still has it held. Costs nothing otherwise.
 player.AuxVarSetFlt "*_Mantle_Time" 0 0
 player.AuxVarSetFlt "*_Mantle_CamTime" 0 0
+player.AuxVarSetFlt "*_Mantle_CamOff" 0 0
 EnablePlayerControls 0 0 0 0 1 0 0
 
 CallWhilePerSeconds 0.011 (CompileScript "Mantle\MainLoop.gek") ({} => 1 == 1) 4
