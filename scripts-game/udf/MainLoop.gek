@@ -48,6 +48,23 @@ float fGoX
 float fGoY
 float fNewX
 float fNewY
+float fCamLock
+float fCamYaw
+float fCamOn
+float fTopX
+float fTopY
+float fTopZ
+float fCurX
+float fCurY
+float fCurZ
+float fEyeZ
+float fLookDist
+float fPitch
+float fPitchWant
+float fPitch0
+float fPitchMax
+float fHalf
+float fRate
 ref rIdle
 
 begin function {}
@@ -82,6 +99,17 @@ begin function {}
 			; climb invented. Gravity resumes from rest on the next frame.
 			player.SetActorVelocity Z 0
 			PPEndInteraction
+
+			; The mouse comes back here too, for the climb that ends before the
+			; camera half does -- and for any climb that ends unexpectedly. There
+			; is nothing else still running that knows the view was taken.
+			set fCamOn to player.AuxVarGetFlt "*_Mantle_CamOn" 0
+			if fCamOn
+				set fPitch0 to player.AuxVarGetFlt "*_Mantle_CamPitch0" 0
+				player.SetAngle X fPitch0
+				EnablePlayerControls 0 0 0 0 1 0 0
+				player.AuxVarSetFlt "*_Mantle_CamOn" 0 0
+			endif
 			return
 		endif
 
@@ -98,6 +126,95 @@ begin function {}
 		set fNewZ to fVaultHeight * fEase
 		set fNewZ to fStartZ + fNewZ
 		player.SetPos Z fNewZ
+
+		; The view is put on the obstacle for the front of the climb, so that the
+		; animation has something to be seen against.
+		;
+		; This was built once and taken out again, on the grounds that camera work
+		; during a climb belongs in the animation. It does -- but the animation
+		; cannot pull the *view* down in first person, only the body, so the two
+		; are not alternatives after all.
+		;
+		; The mouse is taken away rather than overruled: re-setting the angle
+		; every frame under a live mouse reads as the game fighting the hand.
+		;
+		; Yaw needs no arithmetic. The obstacle was found by sweeping along the
+		; way the player was already facing, so that heading is already aimed at
+		; it, and holding it is the whole of "fix the camera on the object".
+		;
+		; Pitch is a look-at, at the surface being climbed, capped. The honest
+		; angle to a waist-high top is around sixty degrees down, which is a stare
+		; at one's own boots -- correct and unusable. The cap is what makes it a
+		; glance at the ledge.
+		;
+		; Two halves: down, then back to where it started, with the starting angle
+		; written out exactly on release. Driving the view somewhere and simply
+		; stopping leaves the player holding a camera aimed at the floor with no
+		; idea why, and easing alone lands about a degree short, which accumulates
+		; over an evening.
+		set fCamLock to player.AuxVarGetFlt "*_Mantle_CamLock" 0
+		set fHalf to fCamLock * 0.5
+		set fPitch0 to player.AuxVarGetFlt "*_Mantle_CamPitch0" 0
+		set fCamOn to player.AuxVarGetFlt "*_Mantle_CamOn" 0
+
+		if fT < fCamLock
+			set fCamYaw to player.AuxVarGetFlt "*_Mantle_CamYaw" 0
+
+			if fT < fHalf
+				; Sharply, because the drop is what makes the obstacle appear;
+				; a slow one is over only after the climb is.
+				set fRate to 14
+
+				set fTopX to player.AuxVarGetFlt "*_Mantle_Top" 0
+				set fTopY to player.AuxVarGetFlt "*_Mantle_Top" 1
+				set fTopZ to player.AuxVarGetFlt "*_Mantle_Top" 2
+
+				player.GetPosEx (fCurX) (fCurY) (fCurZ)
+				set fPlayerHeight to player.GetObjectDimensions Z
+				if fPlayerHeight < 1
+					set fPlayerHeight to 128
+				endif
+
+				; From the eyes, not the feet, or the angle is wrong by the whole
+				; height of the player at the moment it matters most.
+				set fEyeZ to fPlayerHeight * 0.85
+				set fEyeZ to fCurZ + fEyeZ
+				set fLookDist to GetVector3DDistance fTopX fTopY fCurZ fCurX fCurY fCurZ
+				if fLookDist < 4
+					set fLookDist to 4
+				endif
+				set fPitchWant to fTopZ - fEyeZ
+				set fPitchWant to fATan2 fPitchWant fLookDist
+
+				; Positive GetAngle X looks *down*, and the geometric angle is
+				; positive upwards, so it is negated going in.
+				set fPitchWant to 0 - fPitchWant
+
+				set fPitchMax to player.AuxVarGetFlt "*_Mantle_CamPitchMax" 0
+				if fPitchWant > fPitchMax
+					set fPitchWant to fPitchMax
+				endif
+				if fPitchWant < 0 - fPitchMax
+					set fPitchWant to 0 - fPitchMax
+				endif
+			else
+				set fPitchWant to fPitch0
+				set fRate to 16
+			endif
+
+			set fPitch to player.GetAngle X
+			set fPitch to fPitchWant - fPitch
+			set fPitch to fPitch * fRate
+			set fPitch to fPitch * GetSecondsPassed
+			set fPitch to player.GetAngle X + fPitch
+
+			player.SetAngle X fPitch
+			player.SetAngle Z fCamYaw
+		elseif fCamOn
+			player.SetAngle X fPitch0
+			EnablePlayerControls 0 0 0 0 1 0 0
+			player.AuxVarSetFlt "*_Mantle_CamOn" 0 0
+		endif
 
 		; Forward is driven only for a climb that started from the ground.
 		;
@@ -394,6 +511,25 @@ begin function {}
 	set fDuration to fVaultHeight / fPlayerHeight
 	set fDuration to fDuration * 0.55
 	set fDuration to fDuration + 0.10
+
+	; The winning ray's own landing point, so the view can be aimed at it every
+	; frame. The sweep already found it; nothing here has to be guessed.
+	player.AuxVarSetFlt "*_Mantle_Top" fBestX 0
+	player.AuxVarSetFlt "*_Mantle_Top" fBestY 1
+	player.AuxVarSetFlt "*_Mantle_Top" fBestZ 2
+
+	set fCamYaw to player.GetAngle Z
+	player.AuxVarSetFlt "*_Mantle_CamYaw" fCamYaw 0
+
+	; Where the view was before any of this touched it, so it can be put back.
+	set fPitch0 to player.GetAngle X
+	player.AuxVarSetFlt "*_Mantle_CamPitch0" fPitch0 0
+
+	set fCamLock to player.AuxVarGetFlt "*_Mantle_CamLock" 0
+	if fCamLock > 0
+		DisablePlayerControls 0 0 0 0 1 0 0
+		player.AuxVarSetFlt "*_Mantle_CamOn" 1 0
+	endif
 
 	player.AuxVarSetFlt "*_Mantle_Air" fAir 0
 	player.AuxVarSetFlt "*_Mantle_Height" fVaultHeight 0

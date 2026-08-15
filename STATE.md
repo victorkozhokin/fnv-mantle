@@ -76,15 +76,19 @@ animation. The plugin it started as was deleted once the detection moved.
   swaps that to the engine's value for the length of the climb and back again --
   a discontinuity dropped into the middle of the jump arc. Rooting is re-armed
   exactly while the idle plays, and the faked fall distance goes with it.
-- The script does not touch the camera. It did in v29 to v31 -- looking control
-  taken away, yaw frozen, pitch driven in an eased look-at at the ledge -- and
-  it was removed on purpose. **Do not build it again in script.** Camera work
-  during a climb belongs in the animation, where it is authored against the
-  hands rather than guessed at from the geometry, and stays in step with them
-  for free.
-  The working version is kept in `attic/camera-lock.gek.txt` -- there is no git
-  here, so removing it would have been losing it. The facts it established are
-  under Hard-won facts below and are worth more than the code.
+- Camera held on the obstacle for the first `*_Mantle_CamLock` (0.8) of the
+  climb: looking control taken away, yaw frozen at the GO heading (already aimed
+  at the obstacle, since that is how it was found), pitch pulled down in a
+  capped look-at at the winning sample and then returned, with the starting
+  angle written out exactly on release.
+  This was removed after v31 on the theory that camera work belongs in the
+  animation. It does -- but an animation cannot pull the *view* down in first
+  person, only the body, so the two were never alternatives. Restored in v38.
+  Two numbers that only play can give you: the honest angle to a waist-high top
+  is ~60 degrees down, a stare at one's own boots, hence
+  `*_Mantle_CamPitchMax` = 22; and the view must be put back, or the player is
+  left aiming at the floor with no idea why.
+  `attic/camera-lock.gek.txt` is the v31 copy and is now redundant with git.
 
 ## Settled: the keyless trigger
 
@@ -125,7 +129,6 @@ height of clearance above it. Walls, posts and NPCs fail that on their own.
   samples hit the top and which fell to the floor -- it is simply discarded.
   Would give: vault-through vs mantle-onto, animation choice, and a check that
   there is anywhere to land. Agreed to do after the height cutoff.
-- Animation is Climbing's `SpecialIdle_ClimbUp.kf`, borrowed. Not ours to ship.
 - Debug `PrintC` output is still on.
 
 ## Hard-won facts
