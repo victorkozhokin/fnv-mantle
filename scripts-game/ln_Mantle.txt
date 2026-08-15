@@ -28,6 +28,12 @@ player.AuxVarSetFlt "*_Mantle_Yield" 1 0
 ; How much of the climb the view is held still for, as a fraction. The heading
 ; is frozen where it was when the climb started, which is already pointed at the
 ; obstacle. 0 turns it off.
+; How far above the feet a ledge can be and still be reachable by the arms, as a
+; fraction of the player's height. Ledges below 0.70 are climbed with the legs;
+; anything between that and this is grabbed and hauled over instead, and it only
+; applies where a leg climb found nothing. 0 turns the grab off entirely.
+player.AuxVarSetFlt "*_Mantle_GrabMax" 1.15 0
+
 ; A climb that never finished -- saved during one, or crashed out of one -- would
 ; otherwise resume on load and move the player. Costs nothing when there was no
 ; climb.

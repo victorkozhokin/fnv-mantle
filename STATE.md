@@ -76,6 +76,28 @@ animation. The plugin it started as was deleted once the detection moved.
   here, so removing it would have been losing it. The facts it established are
   under Hard-won facts below and are worth more than the code.
 
+## Grabbing
+
+Ledges above the climbing limit but within reach of raised arms are hauled over
+instead of being refused. `*_Mantle_GrabMax`, a fraction of player height,
+default 1.15; 0 disables it and restores the old behaviour exactly.
+
+No extra rays: the sweep window simply starts higher and samples are sorted into
+two bands afterwards. **The leg band wins whenever it has anything at all**, so
+nothing that used to vault can start grabbing instead -- the grab only appears
+where there was previously nothing.
+
+There is no hanging state and should not be one until there is a hanging
+animation. Holding the player still in the air with idle arms reads as floating,
+not hanging. What is done instead is the shape of the movement: forward is
+delayed on `t^3` rather than `t^2`, so the body goes up the face, stays against
+it, and comes over at the end, and the whole thing takes 1.6x as long.
+
+Room to land is checked from above the winning ledge, looking the way the climb
+is about to travel. The sweep's own clear ray cannot answer that any more --
+with the window reaching arm height it flies over the player's head, which is
+fine for deciding how far out to sample and useless as evidence a body fits.
+
 ## Settled: the keyless trigger
 
 **This one is right. Do not redesign it.** Tested and confirmed good in play;
