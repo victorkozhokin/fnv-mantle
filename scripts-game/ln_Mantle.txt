@@ -25,9 +25,6 @@ player.AuxVarSetFlt "*_Mantle_Auto" 0 0
 ;   player.AuxVarSetFlt "*_Mantle_Yield" 0 0
 player.AuxVarSetFlt "*_Mantle_Yield" 1 0
 
-; How much of the climb the view is held still for, as a fraction. The heading
-; is frozen where it was when the climb started, which is already pointed at the
-; obstacle. 0 turns it off.
 ; A climb that never finished -- saved during one, or crashed out of one -- would
 ; otherwise resume on load and move the player. Costs nothing when there was no
 ; climb.

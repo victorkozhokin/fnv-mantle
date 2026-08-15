@@ -64,8 +64,18 @@ animation. The plugin it started as was deleted once the detection moved.
   being the first stop to reach the top height), clamped to how far the
   head-height ray reached -- `SetPos` does not check collision, and that ray is
   the only evidence the space is free.
-- Physics suppressed for the duration via `PPBeginInteraction`, switchable with
-  `*_Mantle_Yield`. Tried both ways in play; no noticeable difference.
+  **Forward is driven only from the ground.** In the air the player is already
+  travelling, so driving the position does not add movement, it replaces it: a
+  jump aimed at the next ledge was being rewritten into a short hop to twenty
+  units past the near edge, which lands short and falls. Up there the climb only
+  lifts and the player's own arc finishes the job.
+- Physics stood down via `PPBeginInteraction` **on the ground only**; master
+  switch `*_Mantle_Yield`.
+  In the air it is the wrong thing to do, and not because of the movement model:
+  Player Physics runs the player at roughly double gravity, so standing it down
+  swaps that to the engine's value for the length of the climb and back again --
+  a discontinuity dropped into the middle of the jump arc. Rooting is re-armed
+  exactly while the idle plays, and the faked fall distance goes with it.
 - The script does not touch the camera. It did in v29 to v31 -- looking control
   taken away, yaw frozen, pitch driven in an eased look-at at the ledge -- and
   it was removed on purpose. **Do not build it again in script.** Camera work

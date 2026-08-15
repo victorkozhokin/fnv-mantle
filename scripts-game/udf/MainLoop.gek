@@ -81,6 +81,24 @@ begin function {}
 		set fNewZ to fStartZ + fNewZ
 		player.SetPos Z fNewZ
 
+		; Forward is driven only for a climb that started from the ground.
+		;
+		; The drive exists because the ground trigger insists the player is nearly
+		; stopped, so there is no momentum to finish the climb with and something
+		; has to supply it. In the air the opposite is true -- the player is
+		; already travelling, that is what being in the air means -- and driving
+		; the position then does not add movement, it *replaces* it. A jump aimed
+		; at the next ledge gets rewritten into a short slow hop to twenty units
+		; past the near edge, which lands short and falls.
+		;
+		; So up here the climb only lifts, and the jump the player already made
+		; carries them the rest of the way. Their own arc is better than anything
+		; measured from the moment the key went down.
+		set fAir to player.AuxVarGetFlt "*_Mantle_Air" 0
+		if fAir
+			return
+		endif
+
 		set fEase to fT * fT
 		set fStartX to player.AuxVarGetFlt "*_Mantle_Start" 0
 		set fStartY to player.AuxVarGetFlt "*_Mantle_Start" 1
@@ -359,6 +377,7 @@ begin function {}
 	set fDuration to fDuration * 0.55
 	set fDuration to fDuration + 0.10
 
+	player.AuxVarSetFlt "*_Mantle_Air" fAir 0
 	player.AuxVarSetFlt "*_Mantle_Height" fVaultHeight 0
 	player.AuxVarSetFlt "*_Mantle_StartZ" fStartZ 0
 	player.AuxVarSetFlt "*_Mantle_Start" fStartX 0
@@ -388,9 +407,27 @@ begin function {}
 	; Which wins is a question about how it feels, so it is a switch. Note the
 	; idle only plays in first person -- if third person vaults noticeably better
 	; with this on, rooting is the reason.
+	; Stood down on the ground, left alone in the air.
+	;
+	; On the ground the case for standing it down still holds: its model spends a
+	; couple of tenths of a second accelerating out of a standstill, and a
+	; standstill is exactly what being stopped by an obstacle is.
+	;
+	; In the air it is the wrong thing to do, and for a reason that has nothing to
+	; do with the movement model. Player Physics runs the player at roughly double
+	; gravity; standing it down swaps that back to the engine's value for the
+	; length of the climb and then swaps it back again. That is a discontinuity
+	; dropped into the middle of a jump arc -- the arc the player aimed at the
+	; next ledge -- and it is felt as the jump going soft.
+	;
+	; Everything else about handing him back is also worse up here: rooting is
+	; re-armed exactly while the idle plays, and the faked fall distance goes
+	; away, so the landing on the far side can be charged as a fall.
 	set fYield to player.AuxVarGetFlt "*_Mantle_Yield" 0
 	if fYield
-		PPBeginInteraction
+		if fAir == 0
+			PPBeginInteraction
+		endif
 	endif
 
 	if IsPC1stPerson
