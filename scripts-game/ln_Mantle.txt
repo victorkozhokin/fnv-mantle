@@ -7,11 +7,29 @@
 ; from inside the movement solve. Everything after that is here, because JIP's
 ; ray casts are script functions and none of this is per-frame work.
 
-; The lift animation, made for this mod. Cloned onto a throwaway form and
-; repointed, so no esp is needed.
-ref rMantleIdle = TempCloneForm LooseCallForHelpA
-SetIdleAnimPath rMantleIdle "characters\_male\idleanims\Mantle\SpecialIdle_ClimbUp.kf"
-player.AuxVarSetRef "*_Mantle_Idle" rMantleIdle
+; The lift animations, made for this mod. Each is cloned onto its own throwaway
+; form and repointed, so no esp is needed and no animation has to be swapped at
+; the moment it is wanted -- the choice is which form to hand to ForcePlayIdle.
+;
+; Folder names carry the author's spaces on purpose, so a fresh export can be
+; dropped straight in. If an animation ever silently fails to play, that is the
+; first thing to suspect.
+ref rMantleRegular = TempCloneForm LooseCallForHelpA
+SetIdleAnimPath rMantleRegular "characters\_male\idleanims\Mantle\Regular Weapon\SpecialIdle_ClimbUp.kf"
+player.AuxVarSetRef "*_Mantle_IdleR" rMantleRegular
+
+ref rMantleHeavy = TempCloneForm LooseCallForHelpA
+SetIdleAnimPath rMantleHeavy "characters\_male\idleanims\Mantle\Heavy Weapon\SpecialIdle_ClimbUp.kf"
+player.AuxVarSetRef "*_Mantle_IdleH" rMantleHeavy
+
+ref rMantleLow = TempCloneForm LooseCallForHelpA
+SetIdleAnimPath rMantleLow "characters\_male\idleanims\Mantle\Low Obstacle\SpecialIdle_ClimbUp.kf"
+player.AuxVarSetRef "*_Mantle_IdleL" rMantleLow
+
+; Below this fraction of the player's height an obstacle is stepped over rather
+; than climbed, and gets its own animation whatever is in hand. 0 turns that off
+; and leaves the two weapon animations.
+player.AuxVarSetFlt "*_Mantle_LowMax" 0.35 0
 
 ; Climbing without a key press works, and works well -- see STATE.md. It is off
 ; while the rest is being built, because a trigger that fires on its own makes

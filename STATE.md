@@ -5,7 +5,7 @@ and RESEARCH.md and you are caught up.
 
 ## Shipped
 
-`Mantle-v39.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
+`Mantle-v40.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
 needed** -- the trigger reads `PPSpeedRatio`, `PPAirTime` and `PPInAir`, and an
 older Player Physics fails to compile the script at all, which kills the whole
 mod rather than one feature.
@@ -94,6 +94,19 @@ engine asked for and the distance actually covered.
   is ~60 degrees down, a stare at one's own boots, hence
   `*_Mantle_CamPitchMax` = 22; and the view must be put back, or the player is
   left aiming at the floor with no idea why.
+- **Three animations**, chosen at the moment of the climb. Each is cloned onto
+  its own throwaway form at load, so the choice is which form to hand
+  `ForcePlayIdle` rather than a path swapped under time pressure.
+  Height outranks the weapon: below `*_Mantle_LowMax` (0.35 of player height)
+  the obstacle is stepped over rather than hauled onto, which is a different
+  motion for the whole body. Above that the weapon decides, since what changes
+  is where the arms can go. Heavy is `GetWeaponType` 8 and 9 -- Handle and
+  Launcher, so miniguns and gatling lasers on one side, missile launchers and
+  bazookas on the other. Same pair Adaptive Weapon Handling uses.
+  `GetWeaponType` and `GetEqObj` are base xNVSE, not a new dependency, and both
+  appear in working loose scripts in this load order.
+  The animation folder names contain spaces, kept so a fresh export drops in
+  unchanged. Suspect that first if one silently fails to play.
 - A single `PushActorNoRagdoll` as the climb releases, `*_Mantle_Push` (40).
   The climb arrives on top carrying no velocity -- the trigger required a
   standstill and the drive moved positions, not speeds -- so without this the

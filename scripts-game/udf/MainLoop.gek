@@ -66,7 +66,12 @@ float fCamTime
 float fCamDur
 float fPushForce
 float fPushHead
+float fPickH
+float fLowMax
+float fWeapType
+float fLow
 ref rIdle
+ref rWeap
 
 begin function {}
 
@@ -477,6 +482,10 @@ begin function {}
 		endif
 	endif
 
+	; Kept before the clearance is added, because the animation is chosen against
+	; the height of the obstacle, not against how far the body is lifted over it.
+	set fPickH to fVaultHeight
+
 	set fVaultHeight to fVaultHeight + 8
 
 	; Where to come down, and why there has to be a "where" at all.
@@ -594,7 +603,44 @@ begin function {}
 	endif
 
 	if IsPC1stPerson
-		set rIdle to player.AuxVarGetRef "*_Mantle_Idle"
+		; Which of the three to play.
+		;
+		; Height first. A low obstacle is stepped over rather than hauled onto,
+		; and that is a different motion for the whole body, so it outranks what
+		; happens to be in the hands. Above that line the weapon decides, because
+		; the thing that changes is where the arms can go.
+		;
+		; Heavy is animation types 8 and 9 -- Handle and Launcher, which is
+		; miniguns and gatling lasers on one side and missile launchers and
+		; bazookas on the other. Same test Adaptive Weapon Handling uses, which
+		; read the value straight out of the weapon form; here `GetWeaponType`
+		; reports it, and both it and `GetEqObj 5` have working precedent in the
+		; loose scripts.
+		set fLowMax to player.AuxVarGetFlt "*_Mantle_LowMax" 0
+		set fLowMax to fPlayerHeight * fLowMax
+
+		set rWeap to player.GetEqObj 5
+		set fWeapType to 0
+		if rWeap
+			set fWeapType to GetWeaponType rWeap
+		endif
+
+		set fLow to 0
+		if fPickH < fLowMax
+			set fLow to 1
+		endif
+
+		if fLow
+			set rIdle to player.AuxVarGetRef "*_Mantle_IdleL"
+		elseif fWeapType == 8
+			set rIdle to player.AuxVarGetRef "*_Mantle_IdleH"
+		elseif fWeapType == 9
+			set rIdle to player.AuxVarGetRef "*_Mantle_IdleH"
+		else
+			set rIdle to player.AuxVarGetRef "*_Mantle_IdleR"
+		endif
+
+		PrintC "Mantle: anim low %.0f weapon %.0f" fLow fWeapType
 		player.ForcePlayIdle rIdle
 	endif
 
