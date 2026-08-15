@@ -5,7 +5,7 @@ and RESEARCH.md and you are caught up.
 
 ## Shipped
 
-`Mantle-v45.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
+`Mantle-v46.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
 needed** -- the trigger reads `PPSpeedRatio`, `PPAirTime` and `PPInAir`, and an
 older Player Physics fails to compile the script at all, which kills the whole
 mod rather than one feature.
@@ -227,3 +227,22 @@ Console output goes to a file via `SetConsoleOutputFilename`. Send it filtered:
     grep -a "Mantle:" <file> | tail -60
 
 `PlayerPhysics.log` is small enough to send whole.
+
+## The sound text key in the sprint animation
+
+The sprint animation shipped with a kNVSE text key, `SoundPath:fx\STRADAT\climb_01.wav`,
+which would have played that one file on top of the random one the script picks
+-- the same climb heard twice, and never any of the other nine.
+
+It is **neutralised in place, not structurally removed**: the 33 characters are
+overwritten with spaces, so the length prefix, the key count and the block size
+table all stay exactly as they were, and no byte offset moves. A key whose text
+matches no prefix is skipped.
+
+Doing it properly means editing three things at once in a 20.2.0.7 file -- the
+key count, the containing block's entry in the block size table, and every byte
+after it -- with no way to test the result here. A corrupt animation fails
+silently, which is the worst way for this to go wrong. If the key should really
+be gone, it belongs in the animator's export.
+
+`BlendIn:3` is left alone in all three; that one is doing a job.
