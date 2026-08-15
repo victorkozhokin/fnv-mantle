@@ -53,8 +53,17 @@ animation. The plugin it started as was deleted once the detection moved.
 - The facing vector comes from `fSin`/`fCos` of `GetAngle Z` and is the one
   piece built on an assumed convention. It is printed in the debug line for
   that reason.
-- Motion: `SetPos Z` along `1-(1-t)^2`, duration scaled by height. Forward
-  travel comes from the player's own held key.
+- Motion: `SetPos` on all three axes, duration scaled by height. Up on
+  `1-(1-t)^2`, forward on `t*t` -- a mantle is not a diagonal, the body goes up
+  first and over second.
+  Forward used to be left to the player's own walking, which contradicted the
+  trigger: it insists the player is nearly stopped, and then the climb depended
+  on a walk. Low crates hid it, since the feet finish 8 units clear and a step
+  covers the rest; anything taller rose against the face and slid back down.
+  The target is 20 units past the winning sample (which sits at the near edge,
+  being the first stop to reach the top height), clamped to how far the
+  head-height ray reached -- `SetPos` does not check collision, and that ray is
+  the only evidence the space is free.
 - Physics suppressed for the duration via `PPBeginInteraction`, switchable with
   `*_Mantle_Yield`. Tried both ways in play; no noticeable difference.
 - The script does not touch the camera. It did in v29 to v31 -- looking control

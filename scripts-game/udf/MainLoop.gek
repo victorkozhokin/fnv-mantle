@@ -42,6 +42,12 @@ float fRayYaw
 float fRun
 float fSweep
 float fWindow
+float fBestDist
+float fGoDist
+float fGoX
+float fGoY
+float fNewX
+float fNewY
 ref rIdle
 
 begin function {}
@@ -63,12 +69,33 @@ begin function {}
 
 		set fT to fDuration - fVaultTime
 		set fT to fT / fDuration
+
+		; Up on an ease-out, forward on an ease-in. Two curves rather than one,
+		; because a mantle is not a diagonal: the body goes up first and comes
+		; over second. Sharing a curve reads as being dragged through the corner
+		; of the obstacle.
 		set fEase to 1 - fT
 		set fEase to fEase * fEase
 		set fEase to 1 - fEase
 		set fNewZ to fVaultHeight * fEase
 		set fNewZ to fStartZ + fNewZ
 		player.SetPos Z fNewZ
+
+		set fEase to fT * fT
+		set fStartX to player.AuxVarGetFlt "*_Mantle_Start" 0
+		set fStartY to player.AuxVarGetFlt "*_Mantle_Start" 1
+		set fGoX to player.AuxVarGetFlt "*_Mantle_Go" 0
+		set fGoY to player.AuxVarGetFlt "*_Mantle_Go" 1
+
+		set fNewX to fGoX - fStartX
+		set fNewX to fNewX * fEase
+		set fNewX to fStartX + fNewX
+		set fNewY to fGoY - fStartY
+		set fNewY to fNewY * fEase
+		set fNewY to fStartY + fNewY
+
+		player.SetPos X fNewX
+		player.SetPos Y fNewY
 		return
 	endif
 
@@ -207,6 +234,7 @@ begin function {}
 	set fBestX to 0
 	set fBestY to 0
 	set fBestZ to 0
+	set fBestDist to 0
 	set fBestRun to 0
 	set fRun to 0
 	set fPrevZ to 0
@@ -255,6 +283,7 @@ begin function {}
 			set fBestY to fOverY
 			set fBestZ to fHitZ
 			set fBestRun to fRun
+			set fBestDist to fDist
 		endif
 	else
 		set fHavePrev to 0
@@ -296,17 +325,51 @@ begin function {}
 
 	set fVaultHeight to fVaultHeight + 8
 
+	; Where to come down, and why there has to be a "where" at all.
+	;
+	; Until now the climb only ever went up. Forward was left to the player's own
+	; walking -- and the trigger has just finished insisting that the player is
+	; barely moving, because that is what being stopped by an obstacle means. So
+	; the two halves contradicted each other: we required a standstill and then
+	; relied on a walk. On a low crate it did not show, since the feet finish
+	; eight units above the top and an ordinary step covers the rest. The taller
+	; the obstacle, the longer the climb spends rising against a flat face with
+	; nothing carrying the body over it, and the surer the slide back down.
+	;
+	; Twenty units past the winning sample. The sample sits at the near edge --
+	; it is the first stop that came back at the top height, later stops of the
+	; same height never beat it -- so landing on it exactly is landing on the
+	; lip. Twenty puts the body over the surface on anything deep, and clean past
+	; it on a fence, which is the right answer for both.
+	;
+	; Clamped to the distance the head-height ray reached. That ray is the only
+	; evidence we have that the space is free, and SetPos does not check
+	; collision, so travelling past it would be moving on no evidence at all.
+	set fGoDist to fBestDist + 20
+	if fGoDist > fClear
+		set fGoDist to fClear
+	endif
+
+	set fGoX to fDirX * fGoDist
+	set fGoX to fStartX + fGoX
+	set fGoY to fDirY * fGoDist
+	set fGoY to fStartY + fGoY
+
 	set fDuration to fVaultHeight / fPlayerHeight
 	set fDuration to fDuration * 0.55
 	set fDuration to fDuration + 0.10
 
 	player.AuxVarSetFlt "*_Mantle_Height" fVaultHeight 0
 	player.AuxVarSetFlt "*_Mantle_StartZ" fStartZ 0
+	player.AuxVarSetFlt "*_Mantle_Start" fStartX 0
+	player.AuxVarSetFlt "*_Mantle_Start" fStartY 1
+	player.AuxVarSetFlt "*_Mantle_Go" fGoX 0
+	player.AuxVarSetFlt "*_Mantle_Go" fGoY 1
 	player.AuxVarSetFlt "*_Mantle_Duration" fDuration 0
 	player.AuxVarSetFlt "*_Mantle_Time" fDuration 0
 	player.AuxVarSetFlt "*_Mantle_Cooldown" 0.5 0
 
-	PrintC "Mantle: GO height %.1f duration %.2f" fVaultHeight fDuration
+	PrintC "Mantle: GO height %.1f forward %.0f duration %.2f" fVaultHeight fGoDist fDuration
 
 	; Standing Player Physics down for the lift is not one decision, it is four,
 	; and they do not all point the same way.
