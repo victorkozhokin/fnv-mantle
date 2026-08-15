@@ -8,7 +8,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 archive="$root/Mantle.zip"
 
-for required in "$root/scripts-game" "$root/meshes" "$root/README.md" "$root/RESEARCH.md"; do
+for required in "$root/scripts-game" "$root/meshes" "$root/Sound" "$root/README.md" "$root/RESEARCH.md"; do
     [[ -e "$required" ]] || { echo "error: missing $required" >&2; exit 1; }
 done
 
@@ -23,10 +23,11 @@ for f in "$root"/nvse/Plugins/Scripts/*.txt "$root"/nvse/user_defined_functions/
     perl -pi -e 's/\r?\n/\r\n/' "$f"
 done
 
-(cd "$root" && zip -rq "$archive" nvse meshes README.md RESEARCH.md -x '*.DS_Store')
+(cd "$root" && zip -rq "$archive" nvse meshes Sound README.md RESEARCH.md -x '*.DS_Store')
 
 echo
 echo "staged  $root/nvse/Plugins/Scripts/"
 echo "        $root/nvse/user_defined_functions/Mantle/"
 echo "        $root/meshes/"
+echo "        $root/Sound/"
 echo "package $archive"

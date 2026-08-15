@@ -60,11 +60,13 @@ float fPushForce
 float fPushHead
 float fPickH
 float fLowMax
-float fWeapType
+float fSprint
+float fSounds
 float fLow
 float fKey
 ref rIdle
-ref rWeap
+int iSnd
+string_var sSnd
 
 begin function {}
 
@@ -602,42 +604,58 @@ begin function {}
 		endif
 	endif
 
+	; One of ten, chosen here rather than left to a text key in the animation.
+	;
+	; A key can name one sound per animation, and naming it means naming a form,
+	; which means an esp. `PlaySoundFromPath` takes the file directly, so the
+	; whole thing stays esp-less and the choice becomes a number.
+	;
+	; The path is built rather than listed, so adding an eleventh file is one
+	; number in the load script.
+	set fSounds to player.AuxVarGetFlt "*_Mantle_Sounds" 0
+	if fSounds > 0
+		set iSnd to GetRandomPercent * fSounds
+		set iSnd to iSnd / 100
+		set iSnd to iSnd + 1
+
+		if iSnd < 10
+			sSnd = "Data\Sound\FX\STRADAT\climb_0" + $(iSnd) + ".wav"
+		else
+			sSnd = "Data\Sound\FX\STRADAT\climb_" + $(iSnd) + ".wav"
+		endif
+
+		PlaySoundFromPath (sSnd) 0 1
+	endif
+
 	if IsPC1stPerson
 		; Which of the three to play.
 		;
-		; Height first. A low obstacle is stepped over rather than hauled onto,
-		; and that is a different motion for the whole body, so it outranks what
-		; happens to be in the hands. Above that line the weapon decides, because
-		; the thing that changes is where the arms can go.
+		; Sprinting first: it is a whole-body state and the animation for it is a
+		; running vault, which is right whatever the obstacle turns out to be.
+		; Enhanced Movement publishes the flag, and three other mods in this load
+		; order read it the same way.
 		;
-		; Heavy is animation types 8 and 9 -- Handle and Launcher, which is
-		; miniguns and gatling lasers on one side and missile launchers and
-		; bazookas on the other. Same test Adaptive Weapon Handling uses, which
-		; read the value straight out of the weapon form; here `GetWeaponType`
-		; reports it, and both it and `GetEqObj 5` have working precedent in the
-		; loose scripts.
-		set rWeap to player.GetEqObj 5
-		set fWeapType to 0
-		if rWeap
-			set fWeapType to GetWeaponType rWeap
-		endif
+		; Then height. A low obstacle is stepped over rather than hauled onto,
+		; which is a different motion for the whole body.
+		;
+		; There is no weapon test any more -- the animations hide the weapon
+		; themselves, so what is in hand no longer changes what the arms do.
+		set fSprint to player.AuxVarGetFlt "*_EMSprint" 0
 
 		set fLow to 0
 		if fPickH < fLowMax
 			set fLow to 1
 		endif
 
-		if fLow
+		if fSprint
+			set rIdle to player.AuxVarGetRef "*_Mantle_IdleS"
+		elseif fLow
 			set rIdle to player.AuxVarGetRef "*_Mantle_IdleL"
-		elseif fWeapType == 8
-			set rIdle to player.AuxVarGetRef "*_Mantle_IdleH"
-		elseif fWeapType == 9
-			set rIdle to player.AuxVarGetRef "*_Mantle_IdleH"
 		else
-			set rIdle to player.AuxVarGetRef "*_Mantle_IdleR"
+			set rIdle to player.AuxVarGetRef "*_Mantle_IdleB"
 		endif
 
-		PrintC "Mantle: anim low %.0f weapon %.0f" fLow fWeapType
+		PrintC "Mantle: anim sprint %.0f low %.0f snd %.0f" fSprint fLow iSnd
 		player.ForcePlayIdle rIdle
 	endif
 

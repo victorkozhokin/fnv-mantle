@@ -14,17 +14,21 @@
 ; Folder names carry the author's spaces on purpose, so a fresh export can be
 ; dropped straight in. If an animation ever silently fails to play, that is the
 ; first thing to suspect.
-ref rMantleRegular = TempCloneForm LooseCallForHelpA
-SetIdleAnimPath rMantleRegular "characters\_male\idleanims\Mantle\Regular Weapon\SpecialIdle_ClimbUp.kf"
-player.AuxVarSetRef "*_Mantle_IdleR" rMantleRegular
+ref rMantleBase = TempCloneForm LooseCallForHelpA
+SetIdleAnimPath rMantleBase "characters\_male\idleanims\Mantle\Base\SpecialIdle_ClimbUp.kf"
+player.AuxVarSetRef "*_Mantle_IdleB" rMantleBase
 
-ref rMantleHeavy = TempCloneForm LooseCallForHelpA
-SetIdleAnimPath rMantleHeavy "characters\_male\idleanims\Mantle\Heavy Weapon\SpecialIdle_ClimbUp.kf"
-player.AuxVarSetRef "*_Mantle_IdleH" rMantleHeavy
+ref rMantleSprint = TempCloneForm LooseCallForHelpA
+SetIdleAnimPath rMantleSprint "characters\_male\idleanims\Mantle\Sprint\SpecialIdle_ClimbUp.kf"
+player.AuxVarSetRef "*_Mantle_IdleS" rMantleSprint
 
 ref rMantleLow = TempCloneForm LooseCallForHelpA
 SetIdleAnimPath rMantleLow "characters\_male\idleanims\Mantle\Low Obstacle\SpecialIdle_ClimbUp.kf"
 player.AuxVarSetRef "*_Mantle_IdleL" rMantleLow
+
+; How many climb_NN.wav sit in Sound\FX\STRADAT. One number, so dropping more in
+; costs a line here and nothing in the loop. 0 silences the climb.
+player.AuxVarSetFlt "*_Mantle_Sounds" 10 0
 
 ; Below this fraction of the player's height an obstacle is stepped over rather
 ; than climbed, and gets its own animation whatever is in hand. 0 turns that off

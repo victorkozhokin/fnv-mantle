@@ -5,13 +5,13 @@ and RESEARCH.md and you are caught up.
 
 ## Shipped
 
-`Mantle-v44.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
+`Mantle-v45.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
 needed** -- the trigger reads `PPSpeedRatio`, `PPAirTime` and `PPInAir`, and an
 older Player Physics fails to compile the script at all, which kills the whole
 mod rather than one feature.
 
-Mantle has **no DLL**. It is `ln_Mantle.txt`, `MainLoop.gek`, and three
-animations. The plugin it started as was deleted once the detection moved
+Mantle has **no DLL**. It is `ln_Mantle.txt`, `MainLoop.gek`, three
+animations and ten sounds. The plugin it started as was deleted once the detection moved
 into Player Physics, which is the only code that can see both the speed the
 engine asked for and the distance actually covered.
 
@@ -109,25 +109,35 @@ engine asked for and the distance actually covered.
 - **Three animations**, chosen at the moment of the climb. Each is cloned onto
   its own throwaway form at load, so the choice is which form to hand
   `ForcePlayIdle` rather than a path swapped under time pressure.
-  Height outranks the weapon: below `*_Mantle_LowMax` (0.35 of player height)
-  the obstacle is stepped over rather than hauled onto, which is a different
-  motion for the whole body. A low climb additionally needs a **rise of 10 units
-  onto the winning surface**, measured against the real ground one stop back --
-  the price of letting the key skip the stall test, which used to exclude
-  sloping ground for free, since you are not stopped by a hill.
-  Two wrong versions first: a plateau at the top (a *gentle* slope has plenty of
-  stops near its highest one, precisely because it is gentle), and the same rise
-  test measured against a window-bounded ray, which fabricated a step of ~18
-  units at the first stop to enter the window. Raising the threshold could not
-  have fixed the second -- it would have had to pass 18 and take every real low
-  ledge with it. Above that the weapon decides, since what changes
-  is where the arms can go. Heavy is `GetWeaponType` 8 and 9 -- Handle and
-  Launcher, so miniguns and gatling lasers on one side, missile launchers and
-  bazookas on the other. Same pair Adaptive Weapon Handling uses.
-  `GetWeaponType` and `GetEqObj` are base xNVSE, not a new dependency, and both
-  appear in working loose scripts in this load order.
-  The animation folder names contain spaces, kept so a fresh export drops in
+  Sprint wins first -- it is a whole-body state and its animation is a running
+  vault, right whatever the obstacle is. `*_EMSprint` is Enhanced Movement's own
+  flag, read the same way by three other mods in this load order. Then height:
+  below `*_Mantle_LowMax` (0.35 of player height) the obstacle is stepped over
+  rather than hauled onto. Otherwise Base.
+  A low climb additionally needs a **rise of 10 units onto the winning
+  surface**, measured against the real ground one stop back -- the price of
+  letting the key skip the stall test, which used to exclude sloping ground for
+  free, since you are not stopped by a hill.
+  Two wrong versions of that test first: a plateau at the top (a *gentle* slope
+  has plenty of stops near its highest one, precisely because it is gentle), and
+  the same rise measured against a window-bounded ray, which fabricated a step
+  of ~18 units at the first stop to enter the window. Raising the threshold
+  could not have fixed the second -- it would have had to pass 18 and take every
+  real low ledge with it.
+  There is **no weapon test**; it was dropped in v45 because the animations hide
+  the weapon themselves. `GetWeaponType` 8 and 9 were the heavy pair, if it is
+  ever wanted again.
+  Animation folder names contain spaces, kept so a fresh export drops in
   unchanged. Suspect that first if one silently fails to play.
+- **A random climb sound**, one of `*_Mantle_Sounds` (10) files at
+  `Data\Sound\FX\STRADAT\climb_NN.wav`, played with JohnnyGuitar's
+  `PlaySoundFromPath`.
+  Not a text key in the animation: a key can name one sound per animation, and
+  naming it means naming a form, which means an esp. Taking the file path
+  directly keeps the mod esp-less and turns the choice into a number, so an
+  eleventh file costs one line in the load script.
+  All ten are normalised to **mono 44100 Hz 16-bit PCM** -- they arrived mixed
+  44.1/48 kHz and mixed mono/stereo, which FNV handles inconsistently.
 - A single `PushActorNoRagdoll` as the climb releases, `*_Mantle_Push` (40).
   The climb arrives on top carrying no velocity -- the trigger required a
   standstill and the drive moved positions, not speeds -- so without this the
