@@ -61,11 +61,13 @@ of Skyrim's SkyParkour NG, several ideas from which are in this.
 
 ## Credits
 
-The climb animations were made for this mod by a collaborator, and are used with
-permission.
+- Animations — **DRIIRE**
+- Sounds — **Mr.Shersh**
 
-`SpecialIdle_ClimbUp.kf` was originally borrowed from Climbing (ESPless) as a
-placeholder during development. It is no longer present.
+Both made for this mod and used with permission.
+
+The animation that shipped during development was borrowed from Climbing
+(ESPless) as a placeholder. It is no longer present.
 
 ## License
 
