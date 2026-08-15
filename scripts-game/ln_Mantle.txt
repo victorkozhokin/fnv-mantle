@@ -1,0 +1,43 @@
+; Mantle -- Data\NVSE\Plugins\Scripts\ln_Mantle.txt
+;
+; Requires JIP LN NVSE (the ray casts) and JohnnyGuitar NVSE.
+;
+; The plugin answers one question -- is the player walking into something --
+; because that has to be asked every frame and can only be answered honestly
+; from inside the movement solve. Everything after that is here, because JIP's
+; ray casts are script functions and none of this is per-frame work.
+
+; The lift animation, borrowed from Climbing (ESPless) as a placeholder. Cloned
+; onto a throwaway form and repointed, so no esp is needed.
+ref rMantleIdle = TempCloneForm LooseCallForHelpA
+SetIdleAnimPath rMantleIdle "characters\_male\idleanims\Mantle\SpecialIdle_ClimbUp.kf"
+player.AuxVarSetRef "*_Mantle_Idle" rMantleIdle
+
+; Climbing without a key press works, and works well -- see STATE.md. It is off
+; while the rest is being built, because a trigger that fires on its own makes
+; every other bug look like a different bug. Turn it on from the console with:
+;   player.AuxVarSetFlt "*_Mantle_Auto" 1 0
+player.AuxVarSetFlt "*_Mantle_Auto" 0 0
+
+; Whether Player Physics stands down for the lift. Off hands the player back to
+; the engine's own movement for the duration, which also re-arms rooting and
+; real fall distance -- see MainLoop.gek, where the trade is written out.
+;   player.AuxVarSetFlt "*_Mantle_Yield" 0 0
+player.AuxVarSetFlt "*_Mantle_Yield" 1 0
+
+; How much of the climb the view is held still for, as a fraction. The heading
+; is frozen where it was when the climb started, which is already pointed at the
+; obstacle. 0 turns it off.
+; A climb that never finished -- saved during one, or crashed out of one -- would
+; otherwise resume on load and move the player. Costs nothing when there was no
+; climb.
+player.AuxVarSetFlt "*_Mantle_Time" 0 0
+
+; Cleanup for saves made under v29 to v31, which took the looking control away
+; for the duration of a climb. One of those saved mid-climb still has it taken
+; away and nothing left running that knows to give it back. Delete once nobody
+; is loading saves from that week.
+player.AuxVarSetFlt "*_Mantle_CamOn" 0 0
+EnablePlayerControls 0 0 0 0 1 0 0
+
+CallWhilePerSeconds 0.011 (CompileScript "Mantle\MainLoop.gek") ({} => 1 == 1) 4

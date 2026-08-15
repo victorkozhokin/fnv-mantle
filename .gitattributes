@@ -1,0 +1,10 @@
+# JIP will not precompile a script with unix line endings, so git is told not to
+# have an opinion about these files. core.autocrlf is "input" on this machine,
+# which would quietly rewrite them on the way into a commit.
+#
+# scripts/build.sh converts the staged copies to CRLF regardless, so the shipped
+# mod is correct either way -- this is about the sources not changing under us,
+# and about a file copied straight out of the repo into the game still working.
+scripts-game/** -text
+
+*.kf binary

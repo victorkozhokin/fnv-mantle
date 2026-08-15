@@ -1,0 +1,331 @@
+float fBlocked
+float fAuto
+float fYield
+float fAir
+float fNeed
+float fVaultTime
+float fVaultHeight
+float fStartZ
+float fStartX
+float fStartY
+float fPlayerHeight
+float fDuration
+float fT
+float fEase
+float fNewZ
+float fCooldown
+float fMaxHeight
+float fMinHeight
+float fCastTopZ
+float fHeadBotZ
+float fLimit
+float fScanTopZ
+float fCastOK
+float fHitX
+float fYaw
+float fProbeZ
+float fFaceX
+float fFaceY
+float fFaceZ
+float fFaceDist
+float fCurDist
+float fStep
+float fSample
+float fBestX
+float fBestY
+float fBestZ
+float fFound
+float fRawBest
+float fPush
+float fOverX
+float fOverY
+float fHitY
+float fHitZ
+ref rIdle
+
+begin function {}
+
+	set fVaultTime to player.AuxVarGetFlt "*_Mantle_Time" 0
+
+	if fVaultTime > 0
+		set fVaultHeight to player.AuxVarGetFlt "*_Mantle_Height" 0
+		set fStartZ to player.AuxVarGetFlt "*_Mantle_StartZ" 0
+		set fDuration to player.AuxVarGetFlt "*_Mantle_Duration" 0
+
+		set fVaultTime to fVaultTime - GetSecondsPassed
+		player.AuxVarSetFlt "*_Mantle_Time" fVaultTime 0
+
+		if fVaultTime <= 0
+			PPEndInteraction
+			return
+		endif
+
+		set fT to fDuration - fVaultTime
+		set fT to fT / fDuration
+		set fEase to 1 - fT
+		set fEase to fEase * fEase
+		set fEase to 1 - fEase
+		set fNewZ to fVaultHeight * fEase
+		set fNewZ to fStartZ + fNewZ
+		player.SetPos Z fNewZ
+		return
+	endif
+
+	set fCooldown to player.AuxVarGetFlt "*_Mantle_Cooldown" 0
+	if fCooldown > 0
+		set fCooldown to fCooldown - GetSecondsPassed
+		player.AuxVarSetFlt "*_Mantle_Cooldown" fCooldown 0
+		return
+	endif
+
+	if IsControlPressed 0 == 0
+		return
+	endif
+
+	; Walking into the thing is the whole intent, so the key is optional.
+	;
+	; And the wait after that is as short as the measurement allows. A longer one
+	; was meant to separate shoving on purpose from bumping by accident, which
+	; sounds right and is not: running into geometry is nearly always an accident
+	; to begin with, so nobody is on the far side of that filter. All the delay
+	; ever did was make the honest case feel dead.
+	;
+	; What remains -- three frames -- is not a filter. It is the shortest run of
+	; frames from which "stopped" can be told apart from a landing or a scrape
+	; along a wall.
+	set fAuto to player.AuxVarGetFlt "*_Mantle_Auto" 0
+	set fNeed to 0.05
+
+	; Jump is no longer accepted as an activate key. It has a job of its own now:
+	; getting high enough that the measurement below can reach the top of
+	; something a standing player could never take.
+	if IsControlPressed 5
+	elseif fAuto == 0
+		return
+	endif
+
+	; In the air, being blocked is not a signal that will ever arrive. Nothing
+	; stops a jump against a wall -- the player is not held up and slowed, they
+	; simply travel until they arrive, and the distance covered each frame stays
+	; exactly what was asked for. Waiting for a stall up here waits forever.
+	;
+	; Which is fine, because being airborne is itself the deliberate act. Nobody
+	; leaves the ground facing a wall by accident, so the jump replaces the stall
+	; as the thing that says this was meant.
+	set fAir to PPInAir
+	if fAir == 0
+		set fBlocked to PPBlockedTime
+		if fBlocked < fNeed
+			return
+		endif
+	endif
+
+	if player.GetDead
+		return
+	endif
+	if player.IsSneaking
+		return
+	endif
+	if player.GetAnimAction == 2
+		return
+	endif
+
+	; Charge for the attempt, not for the success. Without the key there is
+	; nothing to stop a player leaning on a wall from paying thirty ray casts and
+	; a line of log every single frame, forever. A success overwrites this with
+	; its own longer wait, so nothing legitimate is slowed down.
+	;
+	; Kept short, because a failed attempt is not always a wall. Walking at a
+	; fence from an angle can miss on the first read and hit on the second, and
+	; this is the whole distance between the two.
+	player.AuxVarSetFlt "*_Mantle_Cooldown" 0.15 0
+
+	set fPlayerHeight to player.GetObjectDimensions Z
+	if fPlayerHeight < 1
+		set fPlayerHeight to 128
+	endif
+
+	player.GetPosEx (fStartX) (fStartY) (fStartZ)
+
+	; Every height below is measured from where the player is standing *now*, and
+	; that is the whole of the jump support -- there is no separate limit for it
+	; and no second code path.
+	;
+	; The cap was never "how tall an object may be", it is "how far above himself
+	; a person can haul themselves", which is the same number whether the feet
+	; are on the ground or sixty units above it at the top of a jump. Jumping at
+	; a wall simply moves the window up by the height of the jump, so a wall out
+	; of reach from a stand comes into reach from the air, and the arithmetic
+	; that rejects a cliff face is untouched.
+	set fMaxHeight to fPlayerHeight * 0.70
+	set fMinHeight to fPlayerHeight * 0.14
+
+	set fCastTopZ to fStartZ + fMaxHeight
+	set fCastTopZ to fCastTopZ + 16
+
+	; Two casts, because one cannot be both angled and distance-independent. A
+	; single ray leaving the head at 45 degrees reaches climbing height only a
+	; couple of dozen units ahead, so standing slightly too far back sends it
+	; over the obstacle and into the ground beyond -- which is why this used to
+	; need the crosshair placed just so.
+	;
+	; The face is looked for at several heights, and the NEAREST hit wins.
+	;
+	; Taking the first hit from the bottom up was wrong in the one case this scan
+	; exists for. An ankle-high ray slips through the gap under a picket fence,
+	; travels on, and lands on a shack wall seventy units behind it. That counts
+	; as a hit, so the scan stops, and every downward ray afterwards is measuring
+	; the ground beyond the shack. Rows of honest zeroes.
+	;
+	; Whatever is closest is the thing being walked into, at whatever height it
+	; happens to present a surface.
+	set fYaw to -player.GetAngle Z
+	set fScanTopZ to fStartZ + fMaxHeight
+	set fProbeZ to fStartZ + 6
+	set fFound to 0
+	set fFaceDist to 9999
+
+	Label 2
+	set fCastOK to GetPointRayCastPos (fStartX) (fStartY) (fProbeZ) (0) (fYaw) (fHitX) (fHitY) (fHitZ) 19 80
+	if fCastOK
+		set fCurDist to GetVector3DDistance fHitX fHitY fStartZ fStartX fStartY fStartZ
+		if fCurDist < fFaceDist
+			set fFaceDist to fCurDist
+			set fFaceX to fHitX
+			set fFaceY to fHitY
+			set fFaceZ to fProbeZ
+			set fFound to 1
+		endif
+	endif
+	set fProbeZ to fProbeZ + 8
+	if fProbeZ < fScanTopZ
+		Goto 2
+	endif
+
+	if fFound == 0
+		PrintC "Mantle: no face"
+		return
+	endif
+	if fFaceDist < 1
+		return
+	endif
+
+	; A fan of downward rays rather than one at a guessed distance.
+	;
+	; One ray needs an offset past the face, and no single offset is right: too
+	; little catches the near side and reads the ground, too much clears a thin
+	; fence rail and reads the ground behind it. Tuning that number per object
+	; is not a plan when the game is full of geometry nobody has looked at.
+	;
+	; The offsets are evenly spaced, not doubling. A fence board is a couple of
+	; units thick; a fan that jumps 3, 5, 10, 17 steps straight over it and
+	; reports the floor on both sides. Even spacing at three units cannot miss
+	; anything a person could stand on.
+	set fVaultHeight to 0
+	set fOverX to 0
+	set fOverY to 0
+	set fBestX to 0
+	set fBestY to 0
+	set fStep to 1
+	set fRawBest to 0
+
+	Label 1
+	set fPush to fFaceDist + fStep
+	set fPush to fPush / fFaceDist
+	set fOverX to fFaceX - fStartX
+	set fOverX to fOverX * fPush
+	set fOverX to fStartX + fOverX
+	set fOverY to fFaceY - fStartY
+	set fOverY to fOverY * fPush
+	set fOverY to fStartY + fOverY
+
+	set fCastOK to GetPointRayCastPos (fOverX) (fOverY) (fCastTopZ) (-90) (0) (fHitX) (fHitY) (fHitZ) 19 200
+	if fCastOK
+		set fSample to fHitZ - fStartZ
+		if fSample > fRawBest
+			set fRawBest to fSample
+		endif
+		if fSample > fVaultHeight
+			if fSample <= fMaxHeight
+				set fVaultHeight to fSample
+				set fBestX to fOverX
+				set fBestY to fOverY
+				set fBestZ to fHitZ
+			endif
+		endif
+	endif
+
+	set fStep to fStep + 3
+	if fStep < 64
+		Goto 1
+	endif
+
+	; One line per attempt. The face figures are here because a bad height is
+	; almost always a bad face: the wrong surface was found, at the wrong
+	; distance, and the fan then measured somewhere nobody was standing.
+	PrintC "Mantle: air %.0f face %.0f | height %.1f raw %.1f (min %.0f max %.0f)" fAir fFaceDist fVaultHeight fRawBest fMinHeight fMaxHeight
+
+	; The loop leaves fHitZ holding whatever the *last* ray found, which is
+	; usually the floor well past the obstacle. Everything downstream has to use
+	; the winner's own coordinates instead -- the headroom test was measuring
+	; from the ground and refusing every climb the fan had just approved.
+	set fOverX to fBestX
+	set fOverY to fBestY
+	set fHitZ to fBestZ
+
+	if fVaultHeight < fMinHeight
+		return
+	endif
+
+	set fHeadBotZ to fHitZ + 4
+	set fLimit to fHitZ + fPlayerHeight
+	set fCastOK to GetPointRayCastPos (fOverX) (fOverY) (fHeadBotZ) (90) (0) (fHitX) (fHitY) (fHitZ) 19 200
+	if fCastOK != 0
+		if fHitZ < fLimit
+			PrintC "Mantle: no headroom"
+			return
+		endif
+	endif
+
+	set fVaultHeight to fVaultHeight + 8
+
+	set fDuration to fVaultHeight / fPlayerHeight
+	set fDuration to fDuration * 0.55
+	set fDuration to fDuration + 0.10
+
+	player.AuxVarSetFlt "*_Mantle_Height" fVaultHeight 0
+	player.AuxVarSetFlt "*_Mantle_StartZ" fStartZ 0
+	player.AuxVarSetFlt "*_Mantle_Duration" fDuration 0
+	player.AuxVarSetFlt "*_Mantle_Time" fDuration 0
+	player.AuxVarSetFlt "*_Mantle_Cooldown" 0.5 0
+
+	PrintC "Mantle: GO height %.1f duration %.2f" fVaultHeight fDuration
+
+	; Standing Player Physics down for the lift is not one decision, it is four,
+	; and they do not all point the same way.
+	;
+	; For:  its model accelerates out of a standstill over a couple of tenths of
+	;       a second, and a standstill is exactly what being stopped by a fence
+	;       is. Vanilla movement leaves the top of the obstacle much faster, and
+	;       failing to leave it means dropping back down the near side.
+	;
+	; Against: the engine's own rooting is only suppressed while Player Physics
+	;       owns the player. Handing him back re-arms it during the one moment a
+	;       special idle is playing, which is precisely what rooting is for. And
+	;       the faked fall distance goes with it, so the drop on the far side can
+	;       be charged as a fall.
+	;
+	; Which wins is a question about how it feels, so it is a switch. Note the
+	; idle only plays in first person -- if third person vaults noticeably better
+	; with this on, rooting is the reason.
+	set fYield to player.AuxVarGetFlt "*_Mantle_Yield" 0
+	if fYield
+		PPBeginInteraction
+	endif
+
+	if IsPC1stPerson
+		set rIdle to player.AuxVarGetRef "*_Mantle_Idle"
+		player.ForcePlayIdle rIdle
+	endif
+
+end
