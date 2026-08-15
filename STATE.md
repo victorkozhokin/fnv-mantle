@@ -5,7 +5,7 @@ and RESEARCH.md and you are caught up.
 
 ## Shipped
 
-`Mantle-v41.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
+`Mantle-v42.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
 needed** -- the trigger reads `PPSpeedRatio`, `PPAirTime` and `PPInAir`, and an
 older Player Physics fails to compile the script at all, which kills the whole
 mod rather than one feature.
@@ -19,11 +19,17 @@ engine asked for and the distance actually covered.
 
 - Trigger: hold forward and activate (control **5**, not 12 -- Climbing's
   comment is wrong). Jump is no longer an activate key.
-- **No wait.** `PPSpeedRatio` (moved over asked-for, 0 to 1) must be under 0.25.
-  This replaces `PPBlockedTime`, which needed history before it could answer and
-  so cost three frames of feeling dead. Same test as SkyParkour's Smart Climb,
-  which refuses to climb above a fifth of commanded speed.
+- **No wait.** In keyless mode `PPSpeedRatio` (moved over asked-for, 0 to 1)
+  must be under 0.25. This replaces `PPBlockedTime`, which needed history before
+  it could answer and so cost three frames of feeling dead. Same test as
+  SkyParkour's Smart Climb, which refuses above a fifth of commanded speed.
   `PPBlockedTime` is still exported; nothing uses it.
+- **A key press excuses the ratio test.** Waiting to be stopped can only find
+  obstacles that stop you, and low ones do not -- the character controller steps
+  over them and the ratio never falls. That, and not the test that picks it, is
+  why the low animation never once played. A press says what the stall was being
+  used to infer. The ratio stays in force for keyless mode, where nothing else
+  separates climbing a kerb from walking over one.
 - Airborne uses `PPAirTime >= 0.17` instead, since the ratio never drops in the
   air -- nothing stops a jump against a wall. The delay keeps a climb from being
   asked for at ankle height in the first moments of the jump.
@@ -50,10 +56,15 @@ engine asked for and the distance actually covered.
   always found the ground and reported zero, which read exactly like finding
   nothing; that ambiguity cost an evening. The minimum-height test afterwards is
   gone -- the cast geometry enforces it.
-- **Depth is measured**: consecutive stops at the same height are one surface,
-  and the run length times the 4 unit spacing is how deep it is. Printed, not
-  gated on -- thin fences are what finally started working and are exactly what
-  a depth requirement would refuse.
+- **Depth is measured**: how many stops came back at the height that won, times
+  the 4 unit spacing.
+  Counted against the winner, not as a running streak. The streak version was
+  wrong and reported a depth of one for everything -- on a flat top the winner
+  is the *first* stop to reach that height, so the streak at the moment of
+  winning is always one, and every stop afterwards matched without beating it
+  and went uncounted.
+  Only the low band is gated on it (see below); thin fences are a single sample
+  too, and they are the case that finally started working.
 - The facing vector comes from `fSin`/`fCos` of `GetAngle Z` and is the one
   piece built on an assumed convention. It is printed in the debug line for
   that reason.
@@ -102,7 +113,11 @@ engine asked for and the distance actually covered.
   `ForcePlayIdle` rather than a path swapped under time pressure.
   Height outranks the weapon: below `*_Mantle_LowMax` (0.35 of player height)
   the obstacle is stepped over rather than hauled onto, which is a different
-  motion for the whole body. Above that the weapon decides, since what changes
+  motion for the whole body. A low climb additionally needs a plateau of at
+  least two stops -- that guard is the price of letting the key skip the stall
+  test, which used to exclude slopes for free, since you are not stopped by a
+  hill. A slope's highest sample stands alone at its height; a surface worth
+  standing on has several. Above that the weapon decides, since what changes
   is where the arms can go. Heavy is `GetWeaponType` 8 and 9 -- Handle and
   Launcher, so miniguns and gatling lasers on one side, missile launchers and
   bazookas on the other. Same pair Adaptive Weapon Handling uses.

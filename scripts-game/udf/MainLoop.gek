@@ -35,11 +35,8 @@ float fDepth
 float fDirX
 float fDirY
 float fDist
-float fHavePrev
 float fHits
-float fPrevZ
 float fRayYaw
-float fRun
 float fSweep
 float fWindow
 float fBestDist
@@ -68,6 +65,7 @@ float fPickH
 float fLowMax
 float fWeapType
 float fLow
+float fKey
 ref rIdle
 ref rWeap
 
@@ -264,7 +262,9 @@ begin function {}
 	; Jump is no longer accepted as an activate key. It has a job of its own now:
 	; getting high enough that the measurement below can reach the top of
 	; something a standing player could never take.
+	set fKey to 0
 	if IsControlPressed 5
+		set fKey to 1
 	elseif fAuto == 0
 		return
 	endif
@@ -283,12 +283,22 @@ begin function {}
 	; own permission -- but not immediately. The first fraction of a second off
 	; the ground is spent at ankle height with nothing yet in reach, so a climb
 	; asked for there is a climb asked for too early.
+	; And the same reasoning excuses the key from it.
+	;
+	; Waiting to be stopped can only ever find obstacles that stop you, and the
+	; low ones do not: the character controller steps over them and the ratio
+	; never falls. That is why the low animation never played once -- not because
+	; the test that picks it is wrong, but because nothing low ever reached it.
+	;
+	; A press says what the stall was being used to infer, so on the ground it
+	; stands in for it. Left on for the keyless mode, where there is nothing else
+	; to separate climbing a kerb from walking over one.
 	set fAir to PPInAir
 	if fAir
 		if PPAirTime < 0.17
 			return
 		endif
-	else
+	elseif fKey == 0
 		if PPSpeedRatio > 0.25
 			return
 		endif
@@ -385,9 +395,6 @@ begin function {}
 	set fBestZ to 0
 	set fBestDist to 0
 	set fBestRun to 0
-	set fRun to 0
-	set fPrevZ to 0
-	set fHavePrev to 0
 	set fHits to 0
 	set fDist to 6
 
@@ -401,42 +408,29 @@ begin function {}
 	if fCastOK
 		set fHits to fHits + 1
 
-		; Depth, for free. Consecutive stops that come back at the same height are
-		; one flat surface, and how many of them there are is how deep it is.
-		; A run of one is a rail or a fence board; a long run is something with a
-		; top a person could stand on.
+		; Depth: how many stops came back at the height that won, times the
+		; spacing. One stop is a rail or a fence board, several is a surface with
+		; a top a person could stand on.
 		;
-		; Nothing is gated on this yet -- thin fences are exactly what finally
-		; started working, and refusing them to gain tidiness is a bad trade. It
-		; is measured and printed so the next decision has numbers behind it.
-		if fHavePrev
-			set fDelta to fHitZ - fPrevZ
-			if fDelta < 0
-				set fDelta to 0 - fDelta
-			endif
-			if fDelta <= 6
-				set fRun to fRun + 1
-			else
-				set fRun to 1
-			endif
-		else
-			set fRun to 1
-		endif
-		set fPrevZ to fHitZ
-		set fHavePrev to 1
-
+		; Counted against the winner rather than as a running streak. The streak
+		; was wrong and had been reporting a depth of one for everything: on a
+		; flat top the winning sample is the *first* stop to reach that height,
+		; so the streak at the moment of winning is always one, and every stop
+		; afterwards matched the winner without beating it and was never counted.
 		set fSample to fHitZ - fStartZ
 		if fSample > fVaultHeight
 			set fVaultHeight to fSample
 			set fBestX to fOverX
 			set fBestY to fOverY
 			set fBestZ to fHitZ
-			set fBestRun to fRun
 			set fBestDist to fDist
+			set fBestRun to 1
+		else
+			set fDelta to fVaultHeight - fSample
+			if fDelta <= 6
+				set fBestRun to fBestRun + 1
+			endif
 		endif
-	else
-		set fHavePrev to 0
-		set fRun to 0
 	endif
 
 	set fDist to fDist + 4
@@ -468,6 +462,29 @@ begin function {}
 	if fCastOK != 0
 		if fHitZ < fLimit
 			PrintC "Mantle: no headroom"
+			return
+		endif
+	endif
+
+	set fLowMax to player.AuxVarGetFlt "*_Mantle_LowMax" 0
+	set fLowMax to fPlayerHeight * fLowMax
+
+	; A low thing has to have a top, not just be higher further out.
+	;
+	; This guard is the price of letting the key skip the stall test. Waiting to
+	; be stopped happened to exclude slopes for free -- you are not stopped by a
+	; hill, you walk up it -- and without it, facing a rise and pressing the key
+	; would find the highest sample somewhere up the slope and haul the player
+	; there.
+	;
+	; The sweep already separates the two. A slope's highest sample stands alone
+	; at its height, because the next stop out is higher still; a surface worth
+	; standing on has several stops at the same height. So a low climb needs a
+	; plateau, and the taller bands are left alone -- a thin fence rail is a
+	; single sample too, and that is the case which finally started working.
+	if fVaultHeight < fLowMax
+		if fBestRun < 2
+			PrintC "Mantle: low, no top (depth %.0f)" fDepth
 			return
 		endif
 	endif
@@ -606,9 +623,6 @@ begin function {}
 		; read the value straight out of the weapon form; here `GetWeaponType`
 		; reports it, and both it and `GetEqObj 5` have working precedent in the
 		; loose scripts.
-		set fLowMax to player.AuxVarGetFlt "*_Mantle_LowMax" 0
-		set fLowMax to fPlayerHeight * fLowMax
-
 		set rWeap to player.GetEqObj 5
 		set fWeapType to 0
 		if rWeap
