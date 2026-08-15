@@ -5,7 +5,7 @@ and RESEARCH.md and you are caught up.
 
 ## Shipped
 
-`Mantle-v43.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
+`Mantle-v44.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
 needed** -- the trigger reads `PPSpeedRatio`, `PPAirTime` and `PPInAir`, and an
 older Player Physics fails to compile the script at all, which kills the whole
 mod rather than one feature.
@@ -50,12 +50,16 @@ engine asked for and the distance actually covered.
   front of the player, so the face never has to be located -- which removes the
   vertical scan, the offset-past-the-face, and every failure that came from
   choosing that offset. From SkyParkour, inverted.
-- **The downward rays are bounded to the window**: they start at
-  `startZ + maxHeight` and are `maxHeight - minHeight` long, so they cannot
-  reach the floor. A hit is a ledge, a miss is a miss. The old 200 unit rays
-  always found the ground and reported zero, which read exactly like finding
-  nothing; that ambiguity cost an evening. The minimum-height test afterwards is
-  gone -- the cast geometry enforces it.
+- **The downward rays reach past the bottom of the window**, and the window is
+  applied afterwards as a test. Three answers instead of two: a surface worth
+  climbing, a surface too low to bother with but real and measurable, and a
+  genuine drop.
+  Both earlier shapes were worse. 200 unit rays always found something, so a
+  miss and a floor reading were the same answer. Bounding the ray to the
+  climbable range fixed that and broke the step test (below): ground a unit
+  under the window came back as a miss, a miss read as ground level, and the
+  first stop to enter the window always showed a step of the window's own depth
+  out of nothing.
 - **Depth is measured**: how many stops came back at the height that won, times
   the 4 unit spacing.
   Counted against the winner, not as a running streak. The streak version was
@@ -91,28 +95,32 @@ engine asked for and the distance actually covered.
   swaps that to the engine's value for the length of the climb and back again --
   a discontinuity dropped into the middle of the jump arc. Rooting is re-armed
   exactly while the idle plays, and the faked fall distance goes with it.
-- **Yaw is weighted; pitch is not touched.** `*_Mantle_CamDur` (0.9 s) on its
-  own clock, `*_Mantle_CamDrag` (7 /s). Yaw is lagged toward the mouse, so
-  everything asked for still arrives, just not instantly -- that is what weight
-  feels like. Nothing is disabled and nothing is aimed anywhere.
-  **Do not touch pitch again.** Three attempts, three removals: locked onto the
-  ledge in v29-v31, locked again in v38-v39, and a soft nudge the player could
-  fight in v41. The vertical axis is where aiming lives, and moving it under
-  someone reads as the game taking the gun off target whatever the excuse.
-  The load script still hands the looking control back, for saves made while it
-  was being held.
+- **The view dips and comes back; turning is untouched.** `*_Mantle_CamDur`
+  (0.9 s) on its own clock, `*_Mantle_CamNudge` (16 degrees, scaled by how far
+  the climb goes), on a half sine so it returns on its own with no restore step.
+  Last frame's contribution is subtracted before this frame's is worked out, so
+  what sits underneath is always the player's own aim and nothing accumulates.
+  In FNV **X is pitch and Z is yaw**. The dip on X is the wanted effect. Lagging
+  Z was tried in v41 and removed: being able to turn while climbing is worth
+  more than any weight added to it.
+  Locking either axis is settled and wrong -- v29-v31 and v38-v39 both did, and
+  a mouse that stops answering reads as a bug before it reads as a flourish.
+  The load script still hands the looking control back, for saves made then.
 - **Three animations**, chosen at the moment of the climb. Each is cloned onto
   its own throwaway form at load, so the choice is which form to hand
   `ForcePlayIdle` rather than a path swapped under time pressure.
   Height outranks the weapon: below `*_Mantle_LowMax` (0.35 of player height)
   the obstacle is stepped over rather than hauled onto, which is a different
-  motion for the whole body. A low climb additionally needs a **rise of 10
-  units onto the winning surface** -- the price of letting the key skip the
-  stall test, which used to exclude sloping ground for free, since you are not
-  stopped by a hill. Asking for a plateau at the top was the first attempt and
-  the wrong question: a gentle slope has plenty of stops near its highest one
-  precisely because it is gentle. The discontinuity is what separates a ledge
-  from a rise. Above that the weapon decides, since what changes
+  motion for the whole body. A low climb additionally needs a **rise of 10 units
+  onto the winning surface**, measured against the real ground one stop back --
+  the price of letting the key skip the stall test, which used to exclude
+  sloping ground for free, since you are not stopped by a hill.
+  Two wrong versions first: a plateau at the top (a *gentle* slope has plenty of
+  stops near its highest one, precisely because it is gentle), and the same rise
+  test measured against a window-bounded ray, which fabricated a step of ~18
+  units at the first stop to enter the window. Raising the threshold could not
+  have fixed the second -- it would have had to pass 18 and take every real low
+  ledge with it. Above that the weapon decides, since what changes
   is where the arms can go. Heavy is `GetWeaponType` 8 and 9 -- Handle and
   Launcher, so miniguns and gatling lasers on one side, missile launchers and
   bazookas on the other. Same pair Adaptive Weapon Handling uses.

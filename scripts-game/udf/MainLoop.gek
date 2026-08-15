@@ -38,7 +38,7 @@ float fDist
 float fHits
 float fRayYaw
 float fSweep
-float fWindow
+float fProbe
 float fBestDist
 float fGoDist
 float fGoX
@@ -46,11 +46,12 @@ float fGoY
 float fNewX
 float fNewY
 float fCamYaw
-float fDrag
-float fK
-float fCurYaw
-float fPrevYaw
-float fNewYaw
+float fCamNudge
+float fLastOff
+float fOff
+float fEnv
+float fPitch
+float fPitchWant
 float fRise
 float fPrevSample
 float fCamTime
@@ -67,48 +68,41 @@ ref rWeap
 
 begin function {}
 
-	; Yaw is given some weight during a climb. Pitch is not touched at all.
+	; The view dips and comes back, and turning is left entirely alone.
 	;
-	; Pitch has now been taken three times and handed back three times: locked
-	; onto the ledge in v29-v31, locked again in v38-v39, and finally reduced to
-	; a soft nudge that the player could fight. Every version was some flavour of
-	; the same mistake -- the vertical axis is where aiming lives, and moving it
-	; under someone reads as the game taking the gun off target, whatever the
-	; excuse. **Leave it alone.**
+	; X is pitch here, Z is yaw. Both have been tried and only one of them is
+	; wanted: the dip on X is the effect that was asked for and it survives;
+	; lagging Z was tried in v41 and is gone, because being able to turn while
+	; climbing is worth more than any weight added to it.
 	;
-	; Yaw is different, and survives, because it is lagged rather than moved:
-	; everything the mouse asks for still arrives, just not instantly, which is
-	; what weight feels like. Nothing is disabled and nothing is aimed anywhere.
+	; The dip is additive, not a lock. It swells and fades on a half sine --
+	; zero at both ends, most in the middle -- so it returns on its own with no
+	; restore step. Last frame's contribution is subtracted before this frame's
+	; is worked out, so what sits underneath is always the player's own aim and
+	; nothing accumulates. The mouse answers throughout.
 	set fCamTime to player.AuxVarGetFlt "*_Mantle_CamTime" 0
 	if fCamTime > 0
+		set fCamDur to player.AuxVarGetFlt "*_Mantle_CamTotal" 0
 		set fCamTime to fCamTime - GetSecondsPassed
 		player.AuxVarSetFlt "*_Mantle_CamTime" fCamTime 0
 
-		set fDrag to player.AuxVarGetFlt "*_Mantle_CamDrag" 0
-		if fDrag > 0
-			set fCurYaw to player.GetAngle Z
-			set fPrevYaw to player.AuxVarGetFlt "*_Mantle_CamPrevYaw" 0
+		set fLastOff to player.AuxVarGetFlt "*_Mantle_CamOff" 0
+		set fPitch to player.GetAngle X
+		set fPitch to fPitch - fLastOff
 
-			; Around the wrap, or a heading crossing north spins the player the
-			; long way about.
-			set fDelta to fCurYaw - fPrevYaw
-			if fDelta > 180
-				set fDelta to fDelta - 360
-			endif
-			if fDelta < 0 - 180
-				set fDelta to fDelta + 360
-			endif
-
-			set fK to fDrag * GetSecondsPassed
-			if fK > 1
-				set fK to 1
-			endif
-
-			set fNewYaw to fDelta * fK
-			set fNewYaw to fPrevYaw + fNewYaw
-			player.SetAngle Z fNewYaw
-			player.AuxVarSetFlt "*_Mantle_CamPrevYaw" fNewYaw 0
+		set fOff to 0
+		if fCamTime > 0
+			set fT to fCamDur - fCamTime
+			set fT to fT / fCamDur
+			set fEnv to fT * 180
+			set fEnv to fSin fEnv
+			set fOff to player.AuxVarGetFlt "*_Mantle_CamNudgeNow" 0
+			set fOff to fOff * fEnv
 		endif
+
+		set fPitchWant to fPitch + fOff
+		player.SetAngle X fPitchWant
+		player.AuxVarSetFlt "*_Mantle_CamOff" fOff 0
 	endif
 
 	set fVaultTime to player.AuxVarGetFlt "*_Mantle_Time" 0
@@ -312,19 +306,20 @@ begin function {}
 	set fMaxHeight to fPlayerHeight * 0.70
 	set fMinHeight to fPlayerHeight * 0.14
 
-	; The window, and the two facts that fall out of bounding a ray to it.
+	; How far down each stop looks: past the bottom of the climbable range, far
+	; enough to find the ground underneath it.
 	;
-	; The downward rays used to run 200 units and were therefore guaranteed to
-	; find something -- the floor, if nothing else -- so a miss reported a height
-	; of zero and read exactly like finding nothing at all. That ambiguity cost an
-	; evening. A ray that starts at the top of the reachable range and is only as
-	; long as the range itself cannot reach the floor: a hit is a ledge, a miss is
-	; a miss, and no sample can land outside the limits because the ray cannot.
+	; The rays once ran 200 units and always found something, so a miss and a
+	; floor reading were the same answer and neither meant anything. Bounding
+	; them to the climbable range fixed that and introduced the opposite problem:
+	; the cast could no longer see ordinary ground, so it could not tell how far
+	; up a surface actually was from what lay beneath it.
 	;
-	; So the lower bound is enforced by the geometry of the cast rather than by a
-	; test afterwards, and the test afterwards is gone.
+	; Reaching below the range and testing the range separately gives both. Three
+	; distinct answers instead of two: a surface worth climbing, a surface too
+	; low to bother with but real and measurable, and a genuine drop.
 	set fCastTopZ to fStartZ + fMaxHeight
-	set fWindow to fMaxHeight - fMinHeight
+	set fProbe to fMaxHeight + 60
 
 	; Sweeping outward and probing down, rather than finding the face and stepping
 	; past it.
@@ -374,45 +369,60 @@ begin function {}
 	set fOverY to fDirY * fDist
 	set fOverY to fStartY + fOverY
 
-	set fCastOK to GetPointRayCastPos (fOverX) (fOverY) (fCastTopZ) (-90) (0) (fHitX) (fHitY) (fHitZ) 19 fWindow
+	; The ray reaches well below the window on purpose.
+	;
+	; Bounding it to the climbable range answered "is there a ledge here" in one
+	; step, and that is why the step test could not work: a stop that found
+	; ordinary ground a unit under the window came back as a miss, a miss was
+	; read as ground level, and so the first stop to enter the window always
+	; showed a step of the window's own depth -- about eighteen units, out of
+	; nothing. Which is exactly why raising the threshold did not help, and why
+	; it would have had to go past eighteen to do anything at all, taking every
+	; genuine low ledge with it.
+	;
+	; So the ray is long enough to find the ground whatever the ground is doing,
+	; and the window is applied afterwards as a test rather than as the shape of
+	; the cast. A miss now means a real drop, not a surface just out of range.
+	set fCastOK to GetPointRayCastPos (fOverX) (fOverY) (fCastTopZ) (-90) (0) (fHitX) (fHitY) (fHitZ) 19 fProbe
 	if fCastOK
-		set fHits to fHits + 1
-
-		; Depth: how many stops came back at the height that won, times the
-		; spacing. One stop is a rail or a fence board, several is a surface with
-		; a top a person could stand on.
-		;
-		; Counted against the winner rather than as a running streak. The streak
-		; was wrong and had been reporting a depth of one for everything: on a
-		; flat top the winning sample is the *first* stop to reach that height,
-		; so the streak at the moment of winning is always one, and every stop
-		; afterwards matched the winner without beating it and was never counted.
 		set fSample to fHitZ - fStartZ
-		if fSample > fVaultHeight
-			set fVaultHeight to fSample
-			set fBestX to fOverX
-			set fBestY to fOverY
-			set fBestZ to fHitZ
-			set fBestDist to fDist
-			set fBestRun to 1
 
-			; How much of a step up this was: the winner against whatever the
-			; stop before it found. A miss there counts as ground level, since
-			; the only way to miss is to be below the bottom of the window.
+		if fSample >= fMinHeight
+			set fHits to fHits + 1
+
+			; Depth: how many stops came back at the height that won, times the
+			; spacing. One stop is a rail or a fence board, several is a surface
+			; with a top a person could stand on.
 			;
-			; This is what tells a ledge from a rise. Ground and gentle slopes
-			; gain a unit or two per stop; something worth climbing arrives all
-			; at once.
-			set fRise to fSample - fPrevSample
-		else
-			set fDelta to fVaultHeight - fSample
-			if fDelta <= 6
-				set fBestRun to fBestRun + 1
+			; Counted against the winner rather than as a running streak. The
+			; streak was wrong and reported a depth of one for everything: on a
+			; flat top the winner is the *first* stop to reach that height, so the
+			; streak at the moment of winning is always one, and every stop after
+			; it matched without beating it and went uncounted.
+			if fSample > fVaultHeight
+				set fVaultHeight to fSample
+				set fBestX to fOverX
+				set fBestY to fOverY
+				set fBestZ to fHitZ
+				set fBestDist to fDist
+				set fBestRun to 1
+
+				; The size of the jump onto this surface, measured against the
+				; real height of the ground one stop back. Ground and gentle
+				; slopes gain a unit or two per stop; a ledge arrives at once.
+				set fRise to fSample - fPrevSample
+			else
+				set fDelta to fVaultHeight - fSample
+				if fDelta <= 6
+					set fBestRun to fBestRun + 1
+				endif
 			endif
 		endif
 
 		set fPrevSample to fSample
 	else
+		; Nothing even below the feet: a drop, and a drop before a ledge is as
+		; much of a step as anything.
 		set fPrevSample to 0
 	endif
 
@@ -514,11 +524,17 @@ begin function {}
 	set fDuration to fDuration + 0.10
 
 	; Scaled by how far this climb actually goes, so a kerb reads as a step and a
-	; wall reads as an effort. The measurement is already in hand, so this costs
-	; nothing and beats one constant standing in for every obstacle.
+	; wall reads as an effort. The measurement is already in hand.
+	set fCamNudge to player.AuxVarGetFlt "*_Mantle_CamNudge" 0
+	set fCamNudge to fCamNudge * fPickH
+	set fCamNudge to fCamNudge / fMaxHeight
+
 	set fCamDur to player.AuxVarGetFlt "*_Mantle_CamDur" 0
 	if fCamDur > 0
+		player.AuxVarSetFlt "*_Mantle_CamTotal" fCamDur 0
 		player.AuxVarSetFlt "*_Mantle_CamTime" fCamDur 0
+		player.AuxVarSetFlt "*_Mantle_CamNudgeNow" fCamNudge 0
+		player.AuxVarSetFlt "*_Mantle_CamOff" 0 0
 
 		; Seeded with the heading we start from, or the first frame of drag
 		; measures against a stale one and snaps.
