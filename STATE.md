@@ -5,7 +5,7 @@ and RESEARCH.md and you are caught up.
 
 ## Shipped
 
-`Mantle-v38.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
+`Mantle-v39.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
 needed** -- the trigger reads `PPSpeedRatio`, `PPAirTime` and `PPInAir`, and an
 older Player Physics fails to compile the script at all, which kills the whole
 mod rather than one feature.
@@ -80,8 +80,10 @@ engine asked for and the distance actually covered.
   swaps that to the engine's value for the length of the climb and back again --
   a discontinuity dropped into the middle of the jump arc. Rooting is re-armed
   exactly while the idle plays, and the faked fall distance goes with it.
-- Camera held on the obstacle for the first `*_Mantle_CamLock` (0.8) of the
-  climb: looking control taken away, yaw frozen at the GO heading (already aimed
+- Camera held on the obstacle for `*_Mantle_CamDur` (0.9 s) **on its own clock,
+  not the climb's** -- tying it to the climb was the whole of the twitch, since
+  a low crate is over in four tenths and splitting that between a look down and
+  a look back reads as a flinch however it is eased. Looking control taken away, yaw frozen at the GO heading (already aimed
   at the obstacle, since that is how it was found), pitch pulled down in a
   capped look-at at the winning sample and then returned, with the starting
   angle written out exactly on release.
@@ -92,6 +94,13 @@ engine asked for and the distance actually covered.
   is ~60 degrees down, a stare at one's own boots, hence
   `*_Mantle_CamPitchMax` = 22; and the view must be put back, or the player is
   left aiming at the floor with no idea why.
+- A single `PushActorNoRagdoll` as the climb releases, `*_Mantle_Push` (40).
+  The climb arrives on top carrying no velocity -- the trigger required a
+  standstill and the drive moved positions, not speeds -- so without this the
+  player stops dead up there. `PushActorNoRagdoll` and not `SetActorVelocity`
+  because the heading convention is known from a working script and the velocity
+  pair's scale is not, and a one-off shove is the case Player Physics' own
+  knockback path is written for.
 
 ## Settled: the keyless trigger
 

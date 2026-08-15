@@ -25,10 +25,17 @@ player.AuxVarSetFlt "*_Mantle_Auto" 0 0
 ;   player.AuxVarSetFlt "*_Mantle_Yield" 0 0
 player.AuxVarSetFlt "*_Mantle_Yield" 1 0
 
-; How much of the climb the view is held for, as a fraction of it. The first
-; half of that pulls the view down onto the ledge, the second puts it back where
-; it started. 0 turns it off.
-player.AuxVarSetFlt "*_Mantle_CamLock" 0.8 0
+; How long the view is held, in seconds, on its own clock rather than the
+; climb's -- a low crate is over in four tenths, and splitting that between a
+; look down and a look back reads as a flinch however it is eased. The first
+; 45% pulls the view onto the ledge, the rest puts it back. 0 turns it off.
+player.AuxVarSetFlt "*_Mantle_CamDur" 0.9 0
+
+; How hard the player is shoved forward as the climb releases, in the units
+; PushActorNoRagdoll takes. The climb arrives on top with no velocity of its
+; own, since it moved positions rather than pushing; this is what keeps the
+; player from stopping dead up there. 0 turns it off.
+player.AuxVarSetFlt "*_Mantle_Push" 40 0
 
 ; How far down the view may be pulled, in degrees. The true angle to the top of
 ; a waist-high fence is around sixty, which is a stare at the floor; this is the
@@ -40,7 +47,7 @@ player.AuxVarSetFlt "*_Mantle_CamPitchMax" 22 0
 ; control taken away with nothing running that knows to give it back. Costs
 ; nothing when there was no climb.
 player.AuxVarSetFlt "*_Mantle_Time" 0 0
-player.AuxVarSetFlt "*_Mantle_CamOn" 0 0
+player.AuxVarSetFlt "*_Mantle_CamTime" 0 0
 EnablePlayerControls 0 0 0 0 1 0 0
 
 CallWhilePerSeconds 0.011 (CompileScript "Mantle\MainLoop.gek") ({} => 1 == 1) 4
