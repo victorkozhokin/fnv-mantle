@@ -5,7 +5,7 @@ and RESEARCH.md and you are caught up.
 
 ## Shipped
 
-`Mantle-v42.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
+`Mantle-v43.zip` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
 needed** -- the trigger reads `PPSpeedRatio`, `PPAirTime` and `PPInAir`, and an
 older Player Physics fails to compile the script at all, which kills the whole
 mod rather than one feature.
@@ -91,21 +91,14 @@ engine asked for and the distance actually covered.
   swaps that to the engine's value for the length of the climb and back again --
   a discontinuity dropped into the middle of the jump arc. Rooting is re-armed
   exactly while the idle plays, and the faked fall distance goes with it.
-- **The camera is weighted, never taken.** `*_Mantle_CamDur` (0.9 s) on its own
-  clock, not the climb's.
-  Two additive effects and no `DisablePlayerControls` anywhere: pitch gets a
-  downward nudge of `*_Mantle_CamNudge` (16 degrees, scaled by how far the climb
-  actually goes) on a half sine, so it swells and fades and returns to zero on
-  its own; and yaw is lagged toward the mouse at `*_Mantle_CamDrag` (7 /s),
-  which is delay, not loss. Last frame's nudge is subtracted before this frame's
-  is computed, so the angle underneath stays exactly the player's own and
-  nothing accumulates.
-  **Do not lock the view again.** It was locked in v29-v31 and again in
-  v38-v39, on the theory that the animation needs something to be seen against.
-  It does show the animation, and it is not worth it -- looking around during a
-  climb is most of the point of climbing, and a mouse that stops answering
-  reads as a bug long before it reads as a flourish. Both attempts ended the
-  same way.
+- **Yaw is weighted; pitch is not touched.** `*_Mantle_CamDur` (0.9 s) on its
+  own clock, `*_Mantle_CamDrag` (7 /s). Yaw is lagged toward the mouse, so
+  everything asked for still arrives, just not instantly -- that is what weight
+  feels like. Nothing is disabled and nothing is aimed anywhere.
+  **Do not touch pitch again.** Three attempts, three removals: locked onto the
+  ledge in v29-v31, locked again in v38-v39, and a soft nudge the player could
+  fight in v41. The vertical axis is where aiming lives, and moving it under
+  someone reads as the game taking the gun off target whatever the excuse.
   The load script still hands the looking control back, for saves made while it
   was being held.
 - **Three animations**, chosen at the moment of the climb. Each is cloned onto
@@ -113,11 +106,13 @@ engine asked for and the distance actually covered.
   `ForcePlayIdle` rather than a path swapped under time pressure.
   Height outranks the weapon: below `*_Mantle_LowMax` (0.35 of player height)
   the obstacle is stepped over rather than hauled onto, which is a different
-  motion for the whole body. A low climb additionally needs a plateau of at
-  least two stops -- that guard is the price of letting the key skip the stall
-  test, which used to exclude slopes for free, since you are not stopped by a
-  hill. A slope's highest sample stands alone at its height; a surface worth
-  standing on has several. Above that the weapon decides, since what changes
+  motion for the whole body. A low climb additionally needs a **rise of 10
+  units onto the winning surface** -- the price of letting the key skip the
+  stall test, which used to exclude sloping ground for free, since you are not
+  stopped by a hill. Asking for a plateau at the top was the first attempt and
+  the wrong question: a gentle slope has plenty of stops near its highest one
+  precisely because it is gentle. The discontinuity is what separates a ledge
+  from a rise. Above that the weapon decides, since what changes
   is where the arms can go. Heavy is `GetWeaponType` 8 and 9 -- Handle and
   Launcher, so miniguns and gatling lasers on one side, missile launchers and
   bazookas on the other. Same pair Adaptive Weapon Handling uses.

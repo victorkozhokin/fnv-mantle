@@ -46,17 +46,13 @@ float fGoY
 float fNewX
 float fNewY
 float fCamYaw
-float fPitch
-float fPitchWant
-float fEnv
-float fOff
-float fLastOff
 float fDrag
 float fK
 float fCurYaw
 float fPrevYaw
 float fNewYaw
-float fCamNudge
+float fRise
+float fPrevSample
 float fCamTime
 float fCamDur
 float fPushForce
@@ -71,50 +67,22 @@ ref rWeap
 
 begin function {}
 
-	; The camera is weighted, not taken.
+	; Yaw is given some weight during a climb. Pitch is not touched at all.
 	;
-	; Holding the view still did show the animation, and it was worth less than
-	; what it cost: being able to look around during a climb is most of the point
-	; of climbing, and a mouse that stops answering is a bug in every player's
-	; hands before it is a flourish. So nothing is disabled here and nothing is
-	; aimed anywhere. The view stays the player's; it is only given some mass.
+	; Pitch has now been taken three times and handed back three times: locked
+	; onto the ledge in v29-v31, locked again in v38-v39, and finally reduced to
+	; a soft nudge that the player could fight. Every version was some flavour of
+	; the same mistake -- the vertical axis is where aiming lives, and moving it
+	; under someone reads as the game taking the gun off target, whatever the
+	; excuse. **Leave it alone.**
 	;
-	; Two effects, both additive to whatever the player is doing:
-	;
-	; Pitch gets a nudge downward that swells and fades on a half sine -- zero at
-	; both ends, most at the middle of the climb. Because the envelope returns to
-	; zero on its own, there is no restore step and nothing to drift: last
-	; frame's nudge is subtracted before this frame's is worked out, so the angle
-	; underneath is always the player's own.
-	;
-	; Yaw is lagged rather than moved. What the mouse asked for still arrives,
-	; just not instantly, which is what weight feels like.
+	; Yaw is different, and survives, because it is lagged rather than moved:
+	; everything the mouse asks for still arrives, just not instantly, which is
+	; what weight feels like. Nothing is disabled and nothing is aimed anywhere.
 	set fCamTime to player.AuxVarGetFlt "*_Mantle_CamTime" 0
 	if fCamTime > 0
-		set fCamDur to player.AuxVarGetFlt "*_Mantle_CamTotal" 0
 		set fCamTime to fCamTime - GetSecondsPassed
 		player.AuxVarSetFlt "*_Mantle_CamTime" fCamTime 0
-
-		; The player's own pitch, with our previous contribution removed. The
-		; engine adds the mouse delta on top of whatever was written last frame,
-		; so subtracting the nudge leaves exactly the aim they asked for.
-		set fLastOff to player.AuxVarGetFlt "*_Mantle_CamOff" 0
-		set fPitch to player.GetAngle X
-		set fPitch to fPitch - fLastOff
-
-		set fOff to 0
-		if fCamTime > 0
-			set fT to fCamDur - fCamTime
-			set fT to fT / fCamDur
-			set fEnv to fT * 180
-			set fEnv to fSin fEnv
-			set fOff to player.AuxVarGetFlt "*_Mantle_CamNudgeNow" 0
-			set fOff to fOff * fEnv
-		endif
-
-		set fPitchWant to fPitch + fOff
-		player.SetAngle X fPitchWant
-		player.AuxVarSetFlt "*_Mantle_CamOff" fOff 0
 
 		set fDrag to player.AuxVarGetFlt "*_Mantle_CamDrag" 0
 		if fDrag > 0
@@ -395,6 +363,8 @@ begin function {}
 	set fBestZ to 0
 	set fBestDist to 0
 	set fBestRun to 0
+	set fRise to 0
+	set fPrevSample to 0
 	set fHits to 0
 	set fDist to 6
 
@@ -425,12 +395,25 @@ begin function {}
 			set fBestZ to fHitZ
 			set fBestDist to fDist
 			set fBestRun to 1
+
+			; How much of a step up this was: the winner against whatever the
+			; stop before it found. A miss there counts as ground level, since
+			; the only way to miss is to be below the bottom of the window.
+			;
+			; This is what tells a ledge from a rise. Ground and gentle slopes
+			; gain a unit or two per stop; something worth climbing arrives all
+			; at once.
+			set fRise to fSample - fPrevSample
 		else
 			set fDelta to fVaultHeight - fSample
 			if fDelta <= 6
 				set fBestRun to fBestRun + 1
 			endif
 		endif
+
+		set fPrevSample to fSample
+	else
+		set fPrevSample to 0
 	endif
 
 	set fDist to fDist + 4
@@ -446,7 +429,7 @@ begin function {}
 	; the facing vector is the one piece of this built on an assumed convention;
 	; if it were backwards, every sweep would walk behind the player and hits
 	; would be zero everywhere.
-	PrintC "Mantle: air %.0f clear %.0f hits %.0f | h %.1f depth %.0f dir %.2f %.2f" fAir fClear fHits fVaultHeight fDepth fDirX fDirY
+	PrintC "Mantle: air %.0f clear %.0f hits %.0f | h %.1f rise %.0f depth %.0f" fAir fClear fHits fVaultHeight fRise fDepth
 
 	if fVaultHeight <= 0
 		return
@@ -469,22 +452,23 @@ begin function {}
 	set fLowMax to player.AuxVarGetFlt "*_Mantle_LowMax" 0
 	set fLowMax to fPlayerHeight * fLowMax
 
-	; A low thing has to have a top, not just be higher further out.
+	; A low thing has to be a step, not a rise.
 	;
 	; This guard is the price of letting the key skip the stall test. Waiting to
-	; be stopped happened to exclude slopes for free -- you are not stopped by a
-	; hill, you walk up it -- and without it, facing a rise and pressing the key
-	; would find the highest sample somewhere up the slope and haul the player
-	; there.
+	; be stopped happened to exclude sloping ground for free -- you are not
+	; stopped by a hill, you walk up it -- and without it, pressing the key while
+	; facing any rise finds the highest sample somewhere up the slope and hauls
+	; the player to it. Which is what climbing "on flat ground" actually was:
+	; not flat, just gradual.
 	;
-	; The sweep already separates the two. A slope's highest sample stands alone
-	; at its height, because the next stop out is higher still; a surface worth
-	; standing on has several stops at the same height. So a low climb needs a
-	; plateau, and the taller bands are left alone -- a thin fence rail is a
-	; single sample too, and that is the case which finally started working.
+	; Asking for a plateau at the top was the first attempt and it was the wrong
+	; question -- a *gentle* slope has plenty of stops within tolerance of its
+	; highest one, precisely because it is gentle. The discontinuity is what
+	; matters, so the test is the size of the jump onto the winning surface:
+	; ground gains a unit or two per stop, a ledge arrives all at once.
 	if fVaultHeight < fLowMax
-		if fBestRun < 2
-			PrintC "Mantle: low, no top (depth %.0f)" fDepth
+		if fRise < 10
+			PrintC "Mantle: low, no step (rise %.0f depth %.0f)" fRise fDepth
 			return
 		endif
 	endif
@@ -532,16 +516,9 @@ begin function {}
 	; Scaled by how far this climb actually goes, so a kerb reads as a step and a
 	; wall reads as an effort. The measurement is already in hand, so this costs
 	; nothing and beats one constant standing in for every obstacle.
-	set fCamNudge to player.AuxVarGetFlt "*_Mantle_CamNudge" 0
-	set fCamNudge to fCamNudge * fPickH
-	set fCamNudge to fCamNudge / fMaxHeight
-
 	set fCamDur to player.AuxVarGetFlt "*_Mantle_CamDur" 0
 	if fCamDur > 0
-		player.AuxVarSetFlt "*_Mantle_CamTotal" fCamDur 0
 		player.AuxVarSetFlt "*_Mantle_CamTime" fCamDur 0
-		player.AuxVarSetFlt "*_Mantle_CamNudgeNow" fCamNudge 0
-		player.AuxVarSetFlt "*_Mantle_CamOff" 0 0
 
 		; Seeded with the heading we start from, or the first frame of drag
 		; measures against a stale one and snaps.

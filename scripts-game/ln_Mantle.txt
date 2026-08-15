@@ -47,15 +47,10 @@ player.AuxVarSetFlt "*_Mantle_Yield" 1 0
 ; clock rather than the climb's -- a low crate is over in four tenths, and
 ; anything shaped inside that window reads as a flinch. 0 turns it off.
 ;
-; Nothing is locked. The view stays the player's throughout; these only add to
-; it. Holding it still was tried in v29-v31 and again in v38-v39 and is worse
-; than it sounds -- looking around during a climb is most of the point.
+; Pitch is not touched, at all. It was locked in v29-v31, locked again in
+; v38-v39, and nudged in v41, and all three got in the way -- the vertical axis
+; is where aiming lives.
 player.AuxVarSetFlt "*_Mantle_CamDur" 0.9 0
-
-; Degrees the view is nudged down at the middle of a full-height climb, swelling
-; and fading on a half sine so it returns on its own. Scaled by how far the
-; climb actually goes, so a kerb barely registers.
-player.AuxVarSetFlt "*_Mantle_CamNudge" 16 0
 
 ; How quickly the view catches up with the mouse while climbing, in 1/seconds.
 ; Lower is heavier. This is lag, not loss: everything asked for still arrives.
@@ -69,15 +64,13 @@ player.AuxVarSetFlt "*_Mantle_CamDrag" 7 0
 player.AuxVarSetFlt "*_Mantle_Push" 40 0
 
 ; A climb that never finished -- saved during one, or crashed out of one --
-; would otherwise resume on load and move the player. The pitch nudge is cleared
-; with it, or the next climb subtracts one that is no longer applied.
+; would otherwise resume on load and move the player.
 ;
 ; The looking control is handed back for saves made under v29-v31 or v38-v39,
 ; which took it away for the duration. Nothing takes it any more; this is only
 ; the way out of a save that still has it held. Costs nothing otherwise.
 player.AuxVarSetFlt "*_Mantle_Time" 0 0
 player.AuxVarSetFlt "*_Mantle_CamTime" 0 0
-player.AuxVarSetFlt "*_Mantle_CamOff" 0 0
 EnablePlayerControls 0 0 0 0 1 0 0
 
 CallWhilePerSeconds 0.011 (CompileScript "Mantle\MainLoop.gek") ({} => 1 == 1) 4
