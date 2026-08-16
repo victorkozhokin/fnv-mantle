@@ -5,7 +5,7 @@ and RESEARCH.md and you are caught up.
 
 ## Shipped
 
-`Mantle v48.7z` in `nexus/release/mantle/` on the share, alongside `PlayerPhysics-v33.zip`. **Both are
+`Mantle v48.7z` in `nexus/release/mantle/` on the share, alongside `PlayerPhysics-v38.zip`. **Both are
 needed** -- the trigger reads `PPSpeedRatio`, `PPAirTime` and `PPInAir`, and an
 older Player Physics fails to compile the script at all, which kills the whole
 mod rather than one feature.
